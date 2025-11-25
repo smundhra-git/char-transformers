@@ -1,0 +1,51 @@
+i will be documenting my work. Let's see how far i get. 
+
+first what i am working on - 
+I read this paper : https://arxiv.org/pdf/1706.03762 and now I am feeling like a good developer so I plan to write an entire transformer model, lets see how this macho'sm plays out.
+
+
+Also I am talking to GPT on the side to breakdown the ideas i have in my head to actionable tasks (secret sauce - it works)
+
+Okay coming back to what I am doing exactly -
+I am gonna use text, possibly Shakespeare or my own code or any other text and make it predict the next character 
+
+Let's start from 1st phase -
+I will input a long stream of data (text) and then map each character to a number since our model will be using that. 
+
+e.g. could be 'a' will be 1 and 'b' 2 and so on, and then 'A' could be 27 ...
+
+As a weird guy, I am not using cursor right now
+
+data/raw.txt will have the data
+now i will make the Matrix, yes i am not using Eigen - keeping it as lightweight as possible and i like speed so we use C++.
+
+In math/Matrix we will build a type matrix with dimensions
+
+We will implement a constructor, indexing i, j = like vectors
+basic sanity checks and a matmul function 
+
+This is very basic - i have written the constructor, an access element at (row, col)
+i am deciding if i want to have a conveience operator like () to call a position - i am gonna avoid it for right now. may come back later
+
+ i have written the header file for matrix - after implementing the function i will write a Cmakefile and then eat food - feeling mexican
+
+I am finished implementing the matrix functions and like any good developer i would test it now - you know where? In main.cpp
+
+for cpmpilation use - g++ -std=c++17 -I./src -o main src/main.cpp src/math/matrix.cpp
+
+
+I am happy to see this - 
+" ./main 
+=== Matrix tests start ===
+Constructor / zeros / constant / fill tests passed.
+add / subtract / hadamard / scalar_mul tests passed.
+matmul test passed.
+transpose test passed.
+row_softmax tests passed.
+Example matrix A:
+1 2 3 
+4 5 6 
+=== All Matrix tests passed successfully ===
+"
+
+next we will move to phase 2 an autograd engine (Tensor + Graph) - after this our matrix will keep a track of operations and compute gradients
