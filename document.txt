@@ -49,3 +49,64 @@ Example matrix A:
 "
 
 next we will move to phase 2 an autograd engine (Tensor + Graph) - after this our matrix will keep a track of operations and compute gradients
+
+Alright i am back and i am gonna create the autograd engine now
+Here is the design 
+- We will create Tensor type that will wrap Matrix - and optionally track gradients, know which node created it (will be needed for backdrop)
+
+- a node abstractipn representing operations in the graph- 
+this will hold a reference to input tensors 
+and will know how to compute gradients for inputs given gradients for outputs
+
+- a backward(tensor& loss ) function that will start from scalar loss an walk the graph backward and fill in .grad for all parameters
+this will let us do stupid but interesting things like this - 
+Tensor x = Tension from matrix(A, requires a grad)
+Tensor y = some operation(x, ...)
+Tensor loss = mse_loss(y, target)
+and loss.backward() to populare x.grad etc
+
+now i am writing the skeleton for tensor.hpp
+
+so i am writing it just for 2x2 right now, and given myself a TODO to expand it to N-dim. So i have made a basic skeleton for tensor and now it is time to rock node - it is interesting since i have to use a shareD_ptr<node> so i have forward declared it 
+
+Stuf like this make me love C++ even more.
+
+alright time ti write node's skeleton
+
+Wrote it, later we will create a derived Node types for each of this 
+- AddNode
+- MatmulNode
+-Relu Node and et cetra etc. 
+
+Each derived class will store any extra info needed, and implement backward to computer gradients for the inputs
+
+Till now this is very fun. now i am gonne implement Tensor - so i am gonna lock in for this - will write my thoughts after
+
+I have made a stub for Tensor, Node and backward function 
+first we have to design how the backprop will actaully walk the graph
+implement our first differntiable op with is adding two tensors
+wire the backward(loss) to call into ops' node::backward() function
+and then write a test in main
+
+before making this changes, one important thing - right now my node has a v<Tensor*> inputs and a backward() function - that means to call node->backward(), backward(loss) needs to know the grad_output but the grdaient of a node is always stored in the tensors grad object
+so it will be simpler if each node has a output to its output tensor and its backward() reads output>grad internally
+so first i will tweak the node a lil bit
+
+now i will write the App for Tensors in engines/ops and here later we will have matmul, relu etc
+this ops will sit between math (pure numeric) and engine(autograd)
+
+now important notes - const_cast<Tensor*> is used because inputs will be passed as const Tensor& but we will need to mutate .grad - this is a common design for autograd - we rely that the user will not modify the data via non-const ops
+we also ensutre that only tensors with requires_grad = true are updated
+
+now we will implement the real backward(Tensor& loss) graph traversal
+- currently we have tensors with .grad_fn and nodes with input,ouput and backward()
+we need a topological order of this nodes from the loss (downwards)
+then traverse them in reverse and continuosly propogate the gradients 
+
+so easiest thing which comes to mind directly here is DFS from loss.grad_fn to collect all the reachable nodes, sotre them in a vector post-order - reverse the vector and we can get the backprop order
+
+so i just wrote the DFS, remembered my competitve programming days - it took me less than 40 secs to write it
+
+well now i have also implemented the sum feautes and the main is now tests for that. 
+the next steps will be to implement more ops like matmul, elementwise nonlibearity (relu) etc
+and build a small MLP on top
