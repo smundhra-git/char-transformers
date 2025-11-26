@@ -1,96 +1,74 @@
 #include <iostream>
-#include <cmath>
+#include <string>
 #include <vector>
 
-#include "math/matrix.hpp"
-#include "engine/tensor.hpp"
-#include "engine/ops.hpp"
-#include "nn/linear.hpp"
-#include "optim/sgd.hpp"
+#include "data/vocab.hpp"
+#include "data/dataset.hpp"
 
 using namespace std;
-using namespace math;
-using namespace engine;
-using namespace nn;
-using namespace optim;
+using namespace data;
 
 int main() {
-    cout << "=== 2-layer MLP on XOR (1-sample SGD) ===" << endl;
+    cout << "=== Vocab + CharDataset test ===" << endl;
 
-    // Model: 2 -> 4 -> 1
-    LinearConfig cfg1{2, 4};
-    LinearConfig cfg2{4, 1};
+    // Tiny toy corpus
+    string corpus = "hello\nworld";
 
-    Linear layer1(cfg1);
-    Linear layer2(cfg2);
+    // 1) Build vocab
+    Vocab vocab;
+    vocab.build_from_text(corpus);
 
-    // XOR dataset: inputs and targets
-    struct Sample { double x1, x2, y; };
-    vector<Sample> data = {
-        {0.0, 0.0, 0.0},
-        {0.0, 1.0, 1.0},
-        {1.0, 0.0, 1.0},
-        {1.0, 1.0, 0.0}
-    };
+    cout << "Vocab built. Size = " << vocab.size() << endl;
 
-    double lr = 0.1;
-    int epochs = 5000;
+    // 2) Encode / decode test
+    vector<int> ids = vocab.encode("hello");
+    cout << "Encoded 'hello' -> ";
+    for (int id : ids) cout << id << " ";
+    cout << endl;
 
-    for (int epoch = 0; epoch < epochs; ++epoch) {
-        double epoch_loss = 0.0;
+    string decoded = vocab.decode(ids);
+    cout << "Decoded back -> '" << decoded << "'" << endl;
 
-        for (const auto& s : data) {
-            // Build input x: [1 x 2]
-            Matrix X_m(1, 2, 0.0);
-            X_m.data = { s.x1, s.x2 };
-            Tensor x(X_m, /*require_grad=*/false);
+    // 3) Full corpus as tokens
+    vector<int> tokens = vocab.encode(corpus);
+    cout << "Corpus token length = " << tokens.size() << endl;
 
-            // Target y_true: [1 x 1]
-            Matrix Y_m(1, 1, 0.0);
-            Y_m.data = { s.y };
-            Tensor y_true(Y_m, /*require_grad=*/false);
+    // 4) Dataset test
+    size_t block_size = 4;
+    size_t batch_size = 2;
 
-            // Forward: x -> layer1 -> relu -> layer2 -> y_pred
-            Tensor h1     = layer1.forward(x);      // [1 x 4]
-            Tensor a1     = relu(h1);               // [1 x 4]
-            Tensor y_pred = layer2.forward(a1);     // [1 x 1]
+    CharDataset dataset(tokens, block_size);
 
-            // Loss
-            Tensor diff = sub(y_pred, y_true);
-            Tensor sq = hadamard(diff, diff);
-            Tensor loss = sq;
-            epoch_loss += loss.data.data[0];
+    Batch batch = dataset.next_batch(batch_size);
 
-            // Backprop
-            backward(loss);
-
-            // SGD step on parameters
-            sgd_step({ &layer1.W, &layer1.b,
-                       &layer2.W, &layer2.b }, lr);
+    cout << "\nBatch.x (ids):" << endl;
+    for (size_t i = 0; i < batch.batch_size; ++i) {
+        cout << "row " << i << ": ";
+        for (size_t t = 0; t < batch.block_size; ++t) {
+            int id = batch.x[i * batch.block_size + t];
+            cout << id << " ";
         }
-
-        epoch_loss /= static_cast<double>(data.size());
-
-        if (epoch % 500 == 0) {
-            cout << "Epoch " << epoch
-                 << "  loss = " << epoch_loss << endl;
-        }
+        cout << endl;
     }
 
-    // Final predictions
-    cout << "\nFinal predictions:" << endl;
-    for (const auto& s : data) {
-        Matrix X_m(1, 2, 0.0);
-        X_m.data = { s.x1, s.x2 };
-        Tensor x(X_m, /*require_grad=*/false);
+    cout << "\nBatch.x (decoded):" << endl;
+    for (size_t i = 0; i < batch.batch_size; ++i) {
+        string row;
+        for (size_t t = 0; t < batch.block_size; ++t) {
+            int id = batch.x[i * batch.block_size + t];
+            row.push_back(vocab.decode({id})[0]);
+        }
+        cout << "row " << i << ": '" << row << "'" << endl;
+    }
 
-        Tensor h1     = layer1.forward(x);
-        Tensor a1     = relu(h1);
-        Tensor y_pred = layer2.forward(a1);
-
-        double val = y_pred.data.data[0];
-        cout << "(" << s.x1 << ", " << s.x2 << ") -> "
-             << val << " (target " << s.y << ")" << endl;
+    cout << "\nBatch.y (decoded):" << endl;
+    for (size_t i = 0; i < batch.batch_size; ++i) {
+        string row;
+        for (size_t t = 0; t < batch.block_size; ++t) {
+            int id = batch.y[i * batch.block_size + t];
+            row.push_back(vocab.decode({id})[0]);
+        }
+        cout << "row " << i << ": '" << row << "'" << endl;
     }
 
     return 0;

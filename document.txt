@@ -176,3 +176,11 @@ Final predictions:
 this is the response i got. Isn't it beautiful? It is textbook XOR solve.
 
 now i am gonna push this and then start working on data + encoding utilies, positional encoding modules and self attention blocks
+
+first target we have is to make a tiny char-transfoemr spec 
+few numbers we need to know 
+the dimensions of the model is 64, number of heads is 4, layers is 2, block size will be 64 and vocab size would be whatever the text gives (i aim to start close to 100 chars)
+
+now we will be dealing with strings, lets see how much solving strings question on leetcode will help me. refer to src/data for this
+
+so i have implemented both vocab and datasets and am now wriing tests, after writing a bit you should always test
