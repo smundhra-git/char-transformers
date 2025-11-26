@@ -9,4 +9,9 @@ namespace engine {
 
     //sums all elements of a into a scalar (1x1) tensor
     Tensor sum(const Tensor& a);
+
+    Tensor matmul(const Tensor& a, const Tensor& b);
+
+    //ReLu activation
+    Tensor relu(const Tensor& x);
 } //namespace engine

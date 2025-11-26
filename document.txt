@@ -110,3 +110,18 @@ so i just wrote the DFS, remembered my competitve programming days - it took me 
 well now i have also implemented the sum feautes and the main is now tests for that. 
 the next steps will be to implement more ops like matmul, elementwise nonlibearity (relu) etc
 and build a small MLP on top
+
+now sinec we have a baby autograd engine 
+we will make a neural network primitive at the Tensor level - what this means to common people like us is we will write the matmul function at node level and an activation function, also a simple loss
+
+well i have implemented relu and matmul, also during this time i read a paper
+- https://pmc.ncbi.nlm.nih.gov/articles/PMC11142305/
+good paper, i will beat the stats there
+
+
+by the way tested my relu, matmul and loss and guess what? i got a seegmentation fault error
+
+Thought - "He cut his hand" is a sentence filled with linguistic ambuigity, if someday humankind cracks AGI what would it assume as most of the time, did A cut B hands or A cuts A hand?
+
+
+the seg fault was insane, i was directly passing the output of matmul to relu - and not creating a variable to store it and hence it crashed

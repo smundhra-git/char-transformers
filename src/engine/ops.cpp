@@ -1,7 +1,7 @@
 #include "ops.hpp"
 #include "../math/matrix.hpp"
 
-#include "stdexcept"
+#include <stdexcept>
 
 namespace engine {
     using namespace std;
@@ -9,10 +9,7 @@ namespace engine {
     struct AddNode : public Node {
         //we do not need extra fields; inputs and outputs are enough
 
-        void backward() override {
-            //output -> grad is dL/d(out)
-
-            const math::Matrix& grad_out = output->grad;
+        void backward(const math::Matrix& grad_out) override {
 
             //gradient wrt each input is just grad_out (elementwise)
             for(Tensor* inp : inputs){
@@ -44,16 +41,14 @@ namespace engine {
         if(requires) {
             auto node = make_shared<AddNode>();
             node->inputs = {const_cast<Tensor*>(&a), const_cast<Tensor*>(&b)};
-            node->output = &out;
             out.grad_fn = node;
         }
         return out;
     }
 
     struct SumNode : public Node {
-        void backward() override {
+        void backward(const math::Matrix& grad_out) override {
             //grad_out is scalar 1x1
-            const math::Matrix& grad_out = output -> grad;
             double g = grad_out.data[0];
             
             Tensor* inp = inputs[0];
@@ -80,9 +75,95 @@ namespace engine {
         if(requires) {
             auto node = make_shared<SumNode>();
             node->inputs = {const_cast<Tensor*>(&a)};
-            node->output = &out;
             out.grad_fn = node;
         }
+        return out;
+    }
+
+    struct MatmulNode : public Node {
+        //for matmul out = a*b
+        //inputs[0] = a, inputs[1] = b
+
+        void backward(const math::Matrix& grad_out) override {
+            Tensor* a = inputs[0];
+            Tensor* b = inputs[1];
+
+
+            //dL/da = grad_out * b^T
+            if(a->require_grad){
+                math::Matrix b_T = math::transpose(b->data);
+                math::Matrix grad_a = math::matmul(grad_out, b_T);
+                
+                a->grad.resize(a->rows(), a->cols(), 0.0);
+                for(size_t i = 0; i <a->grad.size(); i++){
+                    a->grad.data[i] += grad_a.data[i];
+                }
+            }
+
+            //dL/db = a^T * grad_out
+            if(b->require_grad) { 
+                math::Matrix a_T = math::transpose(a->data);
+                math::Matrix grad_b = math::matmul(a_T, grad_out);
+
+                b->grad.resize(b->rows(), b->cols(), 0.0);
+                for(size_t i = 0; i < b->grad.size();i++){
+                    b->grad.data[i] += grad_b.data[i];
+                }
+            }
+
+        }
+    };
+
+    Tensor matmul(const Tensor& a, const Tensor& b){
+        if(a.cols()!=b.rows()) throw invalid_argument("incompataible rows and cols");
+
+        math::Matrix out_data = math::matmul(a.data, b.data);
+        bool requires = a.require_grad || b.require_grad;
+
+        Tensor out(out_data, requires);
+
+        if(requires){
+            auto node = make_shared<MatmulNode>();
+            node -> inputs = {const_cast<Tensor*>(&a), const_cast<Tensor*>(&b)};
+            out.grad_fn = node;
+        }
+
+        return out;
+    }
+
+    struct ReluNode : public Node {
+        void backward(const math::Matrix& grad_out) override {
+            Tensor* x = inputs[0];
+            const math::Matrix& x_data = x->data;
+
+            if(!x->require_grad) return;
+
+            x->grad.resize(x->rows(), x->cols(), 0.0);
+
+            for(size_t i = 0; i<x->grad.size(); i++){
+                double gate = x_data.data[i] > 0.0 ? 1.0 : 0.0;
+                x->grad.data[i] += gate * grad_out.data[i];
+            }
+        }
+    };
+
+    Tensor relu(const Tensor& x){
+        math::Matrix out_data(x.rows(), x.cols(), 0.0);
+        //forward out = max(0,x)
+
+        for(size_t i = 0; i< x.size(); i++){
+            out_data.data[i] = max(0.0, x.data.data[i]);
+        }
+
+        bool requires = x.require_grad;
+        Tensor out(out_data, requires);
+
+        if(requires){
+            auto node = make_shared<ReluNode>();
+            node->inputs = {const_cast<Tensor*>(&x)};
+            out.grad_fn = node;
+        }
+        
         return out;
     }
 } //namespace engine

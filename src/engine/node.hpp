@@ -17,7 +17,6 @@ namespace engine {
         //pointer to input tensor. We do not own this; Tensor owns nodes via the shared_Ptr
 
         vector<Tensor*> inputs;
-        Tensor* output = nullptr;
 
         //optional - we can track whether this node has been visited in a backward pass but for now we will just handle this in the backward() free function
 
@@ -30,7 +29,7 @@ namespace engine {
         // 1. Computer grad_input for each input
         // 2. accumulate into input -> grad (since multiple nodes could contribute to the same Tensor)
         //use grad stored in output->grad
-        virtual void backward() = 0;
+        virtual void backward(const math::Matrix& grad_output) = 0;
     };
 } //namespace engine
 

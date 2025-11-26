@@ -15,40 +15,46 @@ bool almost_equal(double a, double b, double eps = 1e-9) {
 }
 
 int main() {
-    cout << "=== Autograd add + sum test ===" << endl;
+    cout << "=== Autograd matmul + relu + sum test ===" << endl;
 
-    // Create 2x2 leaf tensors a and b
-    math::Matrix A_m(2, 2, 0.0);
-    A_m.data = {1.0, 2.0,
-                3.0, 4.0};
+    // a: 2x3
+    math::Matrix A_m(2, 3, 0.0);
+    A_m.data = {
+        -1.0, 2.0, 3.0,
+         4.0, -5.0, 6.0
+    };
 
-    math::Matrix B_m(2, 2, 0.0);
-    B_m.data = {5.0, 6.0,
-                7.0, 8.0};
+    // b: 3x2
+    math::Matrix B_m(3, 2, 0.0);
+    B_m.data = {
+        1.0,  2.0,
+        3.0,  4.0,
+        -1.0, 0.5
+    };
 
     Tensor a(A_m, /*requires_grad=*/true);
     Tensor b(B_m, /*requires_grad=*/true);
 
-    // c = a + b
-    Tensor c = add(a, b);
+    // y = relu(a * b)
+    Tensor z = matmul(a, b);
 
-    // loss = sum(c)
-    Tensor loss = sum(c);
+    Tensor y = relu(z);
 
-    // Backward
+    // loss = sum(y)
+    Tensor loss = sum(y);
+
+    // Backprop
     backward(loss);
 
-    // Expected:
-    // c = a + b, so loss = sum(a) + sum(b)
-    // d(loss)/d(c_ij) = 1
-    // d(loss)/d(a_ij) = 1, d(loss)/d(b_ij) = 1
+    cout << "2" << endl;
+
+    cout << "loss.data = " << loss.data.data[0] << endl;
 
     cout << "a.grad:" << endl;
     for (std::size_t i = 0; i < a.rows(); ++i) {
         for (std::size_t j = 0; j < a.cols(); ++j) {
             double g = a.grad.data[i * a.cols() + j];
             cout << g << " ";
-            assert(almost_equal(g, 1.0));
         }
         cout << endl;
     }
@@ -58,11 +64,10 @@ int main() {
         for (std::size_t j = 0; j < b.cols(); ++j) {
             double g = b.grad.data[i * b.cols() + j];
             cout << g << " ";
-            assert(almost_equal(g, 1.0));
         }
         cout << endl;
     }
 
-    cout << "All autograd tests passed!" << endl;
+    cout << "Test ran successfully (no asserts yet, just inspection)." << endl;
     return 0;
 }

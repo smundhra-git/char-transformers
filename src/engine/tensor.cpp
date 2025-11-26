@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+#include <iostream>
 
 namespace engine {
     using namespace std;
@@ -50,21 +51,20 @@ namespace engine {
 
     //helper DFS to build topoplogical order of the nodes
     static void build_topo(
-        const shared_ptr<Node>& node,
-        unordered_set<Node*>& visited,
-        vector<shared_ptr<Node>>& topo){
+        Tensor* t,
+        unordered_set<Tensor*>& visited,
+        vector<Tensor*>& topo){
 
-            if(!node) return;
-            Node* raw = node.get();
-            if(visited.count(raw)) return;
-            visited.insert(raw);
+            if(!t) return;
+            if(visited.count(t)) return;
+            visited.insert(t);
 
-            for(Tensor* inp : node->inputs){
-                if(inp && inp->grad_fn){
-                    build_topo(inp->grad_fn, visited, topo);
+            if(t->grad_fn){
+                for(Tensor* inp : t->grad_fn->inputs){
+                    build_topo(inp, visited, topo);
                 }
             }
-            topo.push_back(node);
+            topo.push_back(t);
         } 
 
     //implement a real graph traversal here
@@ -83,20 +83,21 @@ namespace engine {
         loss.zero_grad();
         loss.grad.data[0] = 1.0;
 
-        //if there is no grad_fn, there is no grpah to traverse
-        if(!loss.grad_fn){
-            return;
-        }
-
         //build topological order of nodes
-        unordered_set<Node*> visited;
-        vector<shared_ptr<Node>> topo;
-        build_topo(loss.grad_fn, visited, topo);
+        unordered_set<Tensor*> visited;
+        vector<Tensor*> topo;
+        cout << "1" << endl;
+        build_topo(&loss, visited, topo);
 
-        //traverse in reverse topopligical order
-        for(auto it = topo.rbegin(); it != topo.rend(); it++){
-            shared_ptr<Node> node = *it;
-            node -> backward();
+        cout << "2" << endl;
+        
+        //reverse topo for backprop
+        for (auto it = topo.rbegin(); it != topo.rend(); ++it) {
+            Tensor* t = *it;
+            if (!t->grad_fn) continue;
+
+            // t->grad is dL/d(output)
+            t->grad_fn->backward(t->grad);
         }
 
     }
