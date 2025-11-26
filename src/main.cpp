@@ -1,66 +1,97 @@
 #include <iostream>
+#include <cmath>
+#include <vector>
+
 #include "math/matrix.hpp"
 #include "engine/tensor.hpp"
 #include "engine/ops.hpp"
 #include "nn/linear.hpp"
+#include "optim/sgd.hpp"
 
 using namespace std;
 using namespace math;
 using namespace engine;
 using namespace nn;
+using namespace optim;
 
 int main() {
-    cout << "=== Linear + bias (fused) test ===" << endl;
+    cout << "=== 2-layer MLP on XOR (1-sample SGD) ===" << endl;
 
-    LinearConfig cfg{3, 2};
-    Linear layer(cfg);
+    // Model: 2 -> 4 -> 1
+    LinearConfig cfg1{2, 4};
+    LinearConfig cfg2{4, 1};
 
-    // Manually set W: [3 x 2]
-    layer.W.data.data = {
-        1.0, 2.0,
-        3.0, 4.0,
-        5.0, 6.0
+    Linear layer1(cfg1);
+    Linear layer2(cfg2);
+
+    // XOR dataset: inputs and targets
+    struct Sample { double x1, x2, y; };
+    vector<Sample> data = {
+        {0.0, 0.0, 0.0},
+        {0.0, 1.0, 1.0},
+        {1.0, 0.0, 1.0},
+        {1.0, 1.0, 0.0}
     };
 
-    // Manually set b: [1 x 2]
-    layer.b.data.data = { 0.5, -1.0 };
+    double lr = 0.1;
+    int epochs = 5000;
 
-    // Input x: [2 x 3]
-    Matrix X_m(2, 3, 0.0);
-    X_m.data = {
-        1.0, 2.0, 3.0,
-        4.0, 5.0, 6.0
-    };
-    Tensor x(X_m, /*require_grad=*/false);
+    for (int epoch = 0; epoch < epochs; ++epoch) {
+        double epoch_loss = 0.0;
 
-    Tensor y = layer.forward(x);
+        for (const auto& s : data) {
+            // Build input x: [1 x 2]
+            Matrix X_m(1, 2, 0.0);
+            X_m.data = { s.x1, s.x2 };
+            Tensor x(X_m, /*require_grad=*/false);
 
-    cout << "y (forward):" << endl;
-    for (size_t i = 0; i < y.rows(); ++i) {
-        for (size_t j = 0; j < y.cols(); ++j) {
-            cout << y.data.data[i * y.cols() + j] << " ";
+            // Target y_true: [1 x 1]
+            Matrix Y_m(1, 1, 0.0);
+            Y_m.data = { s.y };
+            Tensor y_true(Y_m, /*require_grad=*/false);
+
+            // Forward: x -> layer1 -> relu -> layer2 -> y_pred
+            Tensor h1     = layer1.forward(x);      // [1 x 4]
+            Tensor a1     = relu(h1);               // [1 x 4]
+            Tensor y_pred = layer2.forward(a1);     // [1 x 1]
+
+            // Loss
+            Tensor diff = sub(y_pred, y_true);
+            Tensor sq = hadamard(diff, diff);
+            Tensor loss = sq;
+            epoch_loss += loss.data.data[0];
+
+            // Backprop
+            backward(loss);
+
+            // SGD step on parameters
+            sgd_step({ &layer1.W, &layer1.b,
+                       &layer2.W, &layer2.b }, lr);
         }
-        cout << endl;
-    }
 
-    Tensor loss = sum(y);
-    backward(loss);
+        epoch_loss /= static_cast<double>(data.size());
 
-    cout << "\nloss = " << loss.data.data[0] << endl;
-
-    cout << "\nW.grad:" << endl;
-    for (size_t i = 0; i < layer.W.rows(); ++i) {
-        for (size_t j = 0; j < layer.W.cols(); ++j) {
-            cout << layer.W.grad.data[i * layer.W.cols() + j] << " ";
+        if (epoch % 500 == 0) {
+            cout << "Epoch " << epoch
+                 << "  loss = " << epoch_loss << endl;
         }
-        cout << endl;
     }
 
-    cout << "\nb.grad:" << endl;
-    for (size_t j = 0; j < layer.b.cols(); ++j) {
-        cout << layer.b.grad.data[j] << " ";
+    // Final predictions
+    cout << "\nFinal predictions:" << endl;
+    for (const auto& s : data) {
+        Matrix X_m(1, 2, 0.0);
+        X_m.data = { s.x1, s.x2 };
+        Tensor x(X_m, /*require_grad=*/false);
+
+        Tensor h1     = layer1.forward(x);
+        Tensor a1     = relu(h1);
+        Tensor y_pred = layer2.forward(a1);
+
+        double val = y_pred.data.data[0];
+        cout << "(" << s.x1 << ", " << s.x2 << ") -> "
+             << val << " (target " << s.y << ")" << endl;
     }
-    cout << endl;
 
     return 0;
 }

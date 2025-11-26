@@ -86,11 +86,7 @@ namespace engine {
         //build topological order of nodes
         unordered_set<Tensor*> visited;
         vector<Tensor*> topo;
-        cout << "1" << endl;
         build_topo(&loss, visited, topo);
-
-        cout << "2" << endl;
-        
         //reverse topo for backprop
         for (auto it = topo.rbegin(); it != topo.rend(); ++it) {
             Tensor* t = *it;

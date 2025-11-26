@@ -224,4 +224,184 @@ namespace engine {
         }
         return out;
     }
+
+    struct MSELossNode : public Node {
+        //inputs[0] = pred;
+        //inputs[1] == target (usually require_grad = false)
+        
+        void backward(const math::Matrix& grad_out) override {
+            Tensor* pred = inputs[0];
+            Tensor* target = inputs[1];
+
+            if(!pred->require_grad) return;
+
+            //grad_out is scalar 
+            double g = grad_out.data[1];
+
+            size_t n = pred->size();
+            if(n == 0) return;
+
+            pred->grad.resize(pred->rows(), pred->cols(), 0.0);
+
+            for(size_t i = 0; i< n; i++){
+                double diff = pred->data.data[i] - target->data.data[i];
+            // d/d pred : 2/N * diff * g
+                pred->grad.data[i] += (2.0/static_cast<double>(n)) * diff * g;
+            }
+
+            //for right now we will not propogate grad into target
+        }
+    };
+
+    Tensor mse_loss(Tensor& pred, Tensor& target){
+        if(pred.rows() != target.rows() || pred.cols() != target.cols()){
+            throw invalid_argument ("mse_loss = size do not match");
+        }
+
+        double s = 0.0;
+        size_t n = pred.size();
+
+        for(size_t i = 0; i<n; i++){
+            double diff = pred.data.data[i] - target.data.data[i];
+            s += diff * diff;
+        }
+
+        double mse = ( n > 0) ? (s / static_cast<double>(n)) : 0.0;
+
+        math::Matrix m(1, 1, mse);
+
+        bool requires = pred.require_grad;
+
+        Tensor out(m, requires);
+
+        if(requires){
+            auto node = make_shared<MSELossNode>();
+            node->inputs = {&pred, &target};
+            out.grad_fn = node;
+        }
+
+        return out;
+    }
+
+
+        struct SubNode : public Node {
+            // out = a - b
+            void backward(const math::Matrix& grad_out) override {
+                Tensor* a = inputs[0];
+                Tensor* b = inputs[1];
+    
+                if (a->require_grad) {
+                    a->grad.resize(grad_out.rows, grad_out.cols, 0.0);
+                    for (std::size_t i = 0; i < grad_out.size(); ++i) {
+                        a->grad.data[i] += grad_out.data[i];      // d/d a: +1
+                    }
+                }
+    
+                if (b->require_grad) {
+                    b->grad.resize(grad_out.rows, grad_out.cols, 0.0);
+                    for (std::size_t i = 0; i < grad_out.size(); ++i) {
+                        b->grad.data[i] -= grad_out.data[i];      // d/d b: -1
+                    }
+                }
+            }
+        };
+    
+        Tensor sub(const Tensor& a, const Tensor& b) {
+            if (a.rows() != b.rows() || a.cols() != b.cols()) {
+                throw std::invalid_argument("sub: shape mismatch");
+            }
+    
+            math::Matrix out_data(a.rows(), a.cols(), 0.0);
+            for (std::size_t i = 0; i < a.size(); ++i) {
+                out_data.data[i] = a.data.data[i] - b.data.data[i];
+            }
+    
+            bool requires = a.require_grad || b.require_grad;
+            Tensor out(out_data, requires);
+            if (requires) {
+                auto node = std::make_shared<SubNode>();
+                node->inputs = { const_cast<Tensor*>(&a), const_cast<Tensor*>(&b) };
+                out.grad_fn = node;
+            }
+            return out;
+        }
+    
+
+    struct HadamardNode : public Node {
+        // out = a * b  (elementwise)
+        void backward(const math::Matrix& grad_out) override {
+            Tensor* a = inputs[0];
+            Tensor* b = inputs[1];
+
+            if (a->require_grad) {
+                a->grad.resize(grad_out.rows, grad_out.cols, 0.0);
+                for (std::size_t i = 0; i < grad_out.size(); ++i) {
+                    double d = b->data.data[i];  // ∂(a*b)/∂a = b
+                    a->grad.data[i] += grad_out.data[i] * d;
+                }
+            }
+
+            if (b->require_grad) {
+                b->grad.resize(grad_out.rows, grad_out.cols, 0.0);
+                for (std::size_t i = 0; i < grad_out.size(); ++i) {
+                    double d = a->data.data[i];  // ∂(a*b)/∂b = a
+                    b->grad.data[i] += grad_out.data[i] * d;
+                }
+            }
+        }
+    };
+
+    Tensor hadamard(const Tensor& a, const Tensor& b) {
+        if (a.rows() != b.rows() || a.cols() != b.cols()) {
+            throw std::invalid_argument("hadamard: shape mismatch");
+        }
+
+        math::Matrix out_data(a.rows(), a.cols(), 0.0);
+        for (std::size_t i = 0; i < a.size(); ++i) {
+            out_data.data[i] = a.data.data[i] * b.data.data[i];
+        }
+
+        bool requires = a.require_grad || b.require_grad;
+        Tensor out(out_data, requires);
+        if (requires) {
+            auto node = std::make_shared<HadamardNode>();
+            node->inputs = { const_cast<Tensor*>(&a), const_cast<Tensor*>(&b) };
+            out.grad_fn = node;
+        }
+        return out;
+    }
+
+
+        struct ScaleNode : public Node {
+            double alpha;
+            explicit ScaleNode(double alpha_) : alpha(alpha_) {}
+    
+            void backward(const math::Matrix& grad_out) override {
+                Tensor* a = inputs[0];
+                if (!a->require_grad) return;
+    
+                a->grad.resize(grad_out.rows, grad_out.cols, 0.0);
+                for (std::size_t i = 0; i < grad_out.size(); ++i) {
+                    a->grad.data[i] += alpha * grad_out.data[i];
+                }
+            }
+        };
+    
+        Tensor scale(const Tensor& a, double alpha) {
+            math::Matrix out_data(a.rows(), a.cols(), 0.0);
+            for (std::size_t i = 0; i < a.size(); ++i) {
+                out_data.data[i] = alpha * a.data.data[i];
+            }
+    
+            bool requires = a.require_grad;
+            Tensor out(out_data, requires);
+            if (requires) {
+                auto node = std::make_shared<ScaleNode>(alpha);
+                node->inputs = { const_cast<Tensor*>(&a) };
+                out.grad_fn = node;
+            }
+            return out;
+        }
+    
+
 } //namespace engine

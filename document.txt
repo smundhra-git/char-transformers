@@ -139,3 +139,40 @@ bs is batch size, if is in features and of is guess what? out fesutres.
 
 well i locked in and implemented the Linear implementation, one hting which you may face too is if you have a node which you wil ldestruct future do nto keep it as a ref to another node or else the program will crash 
 
+now we will add a mse_loss op and a tiny SGD optimizer, wire a 2 layer MLP (on say XOR) and run a end-to-end test
+
+Writing the MSE was not fun (not if you have notices the trend that the information repeats itself in the node extensions now) so it is a lot of not thinking jsut doing now. 
+
+also another interesting paper i read last night was - https://arxiv.org/pdf/2506.12220. Yes there are some flaws in the paper and i have informed the authors, i hop they improve them
+
+And now getting back to writing the optimizer or the sgd 
+
+so i have made the header file and this shall be very simple to implement 
+
+one thing i have to do is ensure that i do not keep accessing deleted memory, get seg fault error and then fix - it is wasting my time
+
+amazingly the optimizer worked in a single time and now i am gonna build a char-level transformer on top of this engine (embedding -> multi head attention -> MLP -> output head) and later i will evolve this into a medical reasoning transformer.
+
+before that I tried to tweak the test to XOR and it didn't really learn - interesting - have to tweak the mse 
+
+=== 2-layer MLP on XOR (1-sample SGD) ===
+Epoch 0  loss = 0.44023
+Epoch 500  loss = 1.23689e-22
+Epoch 1000  loss = 1.97215e-31
+Epoch 1500  loss = 1.97215e-31
+Epoch 2000  loss = 1.97215e-31
+Epoch 2500  loss = 1.97215e-31
+Epoch 3000  loss = 1.97215e-31
+Epoch 3500  loss = 1.97215e-31
+Epoch 4000  loss = 1.97215e-31
+Epoch 4500  loss = 1.97215e-31
+
+Final predictions:
+(0, 0) -> 4.44089e-16 (target 0)
+(0, 1) -> 1 (target 1)
+(1, 0) -> 1 (target 1)
+(1, 1) -> 3.9968e-16 (target 0)
+
+this is the response i got. Isn't it beautiful? It is textbook XOR solve.
+
+now i am gonna push this and then start working on data + encoding utilies, positional encoding modules and self attention blocks
