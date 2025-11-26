@@ -1,73 +1,66 @@
 #include <iostream>
-#include <cassert>
-#include <cmath>
-
 #include "math/matrix.hpp"
 #include "engine/tensor.hpp"
 #include "engine/ops.hpp"
+#include "nn/linear.hpp"
 
 using namespace std;
 using namespace math;
 using namespace engine;
-
-bool almost_equal(double a, double b, double eps = 1e-9) {
-    return std::fabs(a - b) < eps;
-}
+using namespace nn;
 
 int main() {
-    cout << "=== Autograd matmul + relu + sum test ===" << endl;
+    cout << "=== Linear + bias (fused) test ===" << endl;
 
-    // a: 2x3
-    math::Matrix A_m(2, 3, 0.0);
-    A_m.data = {
-        -1.0, 2.0, 3.0,
-         4.0, -5.0, 6.0
+    LinearConfig cfg{3, 2};
+    Linear layer(cfg);
+
+    // Manually set W: [3 x 2]
+    layer.W.data.data = {
+        1.0, 2.0,
+        3.0, 4.0,
+        5.0, 6.0
     };
 
-    // b: 3x2
-    math::Matrix B_m(3, 2, 0.0);
-    B_m.data = {
-        1.0,  2.0,
-        3.0,  4.0,
-        -1.0, 0.5
+    // Manually set b: [1 x 2]
+    layer.b.data.data = { 0.5, -1.0 };
+
+    // Input x: [2 x 3]
+    Matrix X_m(2, 3, 0.0);
+    X_m.data = {
+        1.0, 2.0, 3.0,
+        4.0, 5.0, 6.0
     };
+    Tensor x(X_m, /*require_grad=*/false);
 
-    Tensor a(A_m, /*requires_grad=*/true);
-    Tensor b(B_m, /*requires_grad=*/true);
+    Tensor y = layer.forward(x);
 
-    // y = relu(a * b)
-    Tensor z = matmul(a, b);
+    cout << "y (forward):" << endl;
+    for (size_t i = 0; i < y.rows(); ++i) {
+        for (size_t j = 0; j < y.cols(); ++j) {
+            cout << y.data.data[i * y.cols() + j] << " ";
+        }
+        cout << endl;
+    }
 
-    Tensor y = relu(z);
-
-    // loss = sum(y)
     Tensor loss = sum(y);
-
-    // Backprop
     backward(loss);
 
-    cout << "2" << endl;
+    cout << "\nloss = " << loss.data.data[0] << endl;
 
-    cout << "loss.data = " << loss.data.data[0] << endl;
-
-    cout << "a.grad:" << endl;
-    for (std::size_t i = 0; i < a.rows(); ++i) {
-        for (std::size_t j = 0; j < a.cols(); ++j) {
-            double g = a.grad.data[i * a.cols() + j];
-            cout << g << " ";
+    cout << "\nW.grad:" << endl;
+    for (size_t i = 0; i < layer.W.rows(); ++i) {
+        for (size_t j = 0; j < layer.W.cols(); ++j) {
+            cout << layer.W.grad.data[i * layer.W.cols() + j] << " ";
         }
         cout << endl;
     }
 
-    cout << "b.grad:" << endl;
-    for (std::size_t i = 0; i < b.rows(); ++i) {
-        for (std::size_t j = 0; j < b.cols(); ++j) {
-            double g = b.grad.data[i * b.cols() + j];
-            cout << g << " ";
-        }
-        cout << endl;
+    cout << "\nb.grad:" << endl;
+    for (size_t j = 0; j < layer.b.cols(); ++j) {
+        cout << layer.b.grad.data[j] << " ";
     }
+    cout << endl;
 
-    cout << "Test ran successfully (no asserts yet, just inspection)." << endl;
     return 0;
 }

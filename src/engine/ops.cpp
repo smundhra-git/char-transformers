@@ -166,4 +166,62 @@ namespace engine {
         
         return out;
     }
+
+    struct BiasAddNode : public Node {
+        void backward(const math::Matrix& grad_out) override {
+            Tensor* x = inputs[0];
+            Tensor* b = inputs[1];
+
+            if(x -> require_grad) {
+                x -> grad.resize(grad_out.rows, grad_out.cols, 0.0);
+                for(size_t i = 0; i < grad_out.size(); i++){
+                    x-> grad.data[i] += grad_out.data[i];
+                }
+            }
+
+            if(b -> require_grad) {
+                //b is [1 * out_feat]
+                size_t batch = grad_out.rows;
+                size_t out_features = grad_out.cols;
+                b->grad.resize(1, out_features, 0.0);
+
+                for(size_t i = 0; i<batch; i++){
+                    for(size_t j = 0; j < out_features; j++){
+                        double g = grad_out.data[i*out_features + j];
+                        b->grad.data[j] += g;
+                    }
+                }
+            }
+
+        }
+    };
+
+    Tensor bias_add(const Tensor& x, const Tensor& b){
+        if (b.rows() != 1 || x.cols() != b.cols()){
+            throw invalid_argument("bias_add argument size error");
+        }
+        size_t batch = x.rows();
+        size_t out_features = x.cols();
+
+        //forward y
+        math::Matrix out_data(batch, out_features, 0.0);
+
+        for(size_t i = 0; i<batch; i++){
+            for(size_t j = 0; j<out_features; j++){
+                double xv = x.data.data[i*out_features + j];
+                double bv = b.data.data[j];
+                out_data.data[i * out_features + j] = xv + bv;
+            }
+        }
+        bool requires = x.require_grad || b.require_grad;
+        Tensor out(out_data, requires);
+        
+
+        if(requires){
+            auto node = make_shared<BiasAddNode>();
+            node->inputs = {const_cast<Tensor*>(&x), const_cast<Tensor*>(&b)};
+            out.grad_fn = node;
+        }
+        return out;
+    }
 } //namespace engine

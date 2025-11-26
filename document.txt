@@ -125,3 +125,17 @@ Thought - "He cut his hand" is a sentence filled with linguistic ambuigity, if s
 
 
 the seg fault was insane, i was directly passing the output of matmul to relu - and not creating a variable to store it and hence it crashed
+
+now we will work on the linear layer abstraction y=xW + b 
+a basic loss + optimizer
+and a tiny mlp sanity check 
+
+I am starting with Linear now
+theoritically this is what linear will do - for input batch x of shape [bs x if]:
+y = xW + b 
+W is [if*of]
+b is [1xof] and y is [bs * of]
+bs is batch size, if is in features and of is guess what? out fesutres. 
+
+well i locked in and implemented the Linear implementation, one hting which you may face too is if you have a node which you wil ldestruct future do nto keep it as a ref to another node or else the program will crash 
+

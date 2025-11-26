@@ -14,4 +14,7 @@ namespace engine {
 
     //ReLu activation
     Tensor relu(const Tensor& x);
+
+    //y(i,j) = x(i, j) + b(0, j)
+    Tensor bias_add(const Tensor& x, const Tensor& b);
 } //namespace engine
