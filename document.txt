@@ -184,3 +184,11 @@ the dimensions of the model is 64, number of heads is 4, layers is 2, block size
 now we will be dealing with strings, lets see how much solving strings question on leetcode will help me. refer to src/data for this
 
 so i have implemented both vocab and datasets and am now wriing tests, after writing a bit you should always test
+
+next step we will make a mebeddging layer design 
+what embeddings will do - 
+Param W with shape [vocab size * d model], requires_grad = true
+input a vector<int> of token ids and output a tensor of shape [n*d_model] for each position p with id token_ids[p] = i we will accumulate as so 
+dL/dWi += dL/Doutp - the node will store a copy of the ids inside itself to it does not scatter-add in backward
+
+so i did that step and tested it and it is working awesonly 

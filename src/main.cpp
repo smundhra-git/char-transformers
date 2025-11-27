@@ -1,74 +1,41 @@
 #include <iostream>
-#include <string>
-#include <vector>
-
 #include "data/vocab.hpp"
-#include "data/dataset.hpp"
+#include "nn/embedding.hpp"
+#include "engine/ops.hpp"
+#include "engine/tensor.hpp"
 
 using namespace std;
 using namespace data;
+using namespace nn;
+using namespace engine;
 
 int main() {
-    cout << "=== Vocab + CharDataset test ===" << endl;
+    cout << "=== Embedding test ===" << endl;
 
-    // Tiny toy corpus
-    string corpus = "hello\nworld";
-
-    // 1) Build vocab
+    string corpus = "abca";
     Vocab vocab;
     vocab.build_from_text(corpus);
 
-    cout << "Vocab built. Size = " << vocab.size() << endl;
+    vector<int> ids = vocab.encode("ab");
+    // vocab.size() maybe 2 or 3 depending on chars
 
-    // 2) Encode / decode test
-    vector<int> ids = vocab.encode("hello");
-    cout << "Encoded 'hello' -> ";
-    for (int id : ids) cout << id << " ";
-    cout << endl;
+    EmbeddingConfig cfg{ vocab.size(), 4 }; // d_model = 4
+    Embedding emb(cfg);
 
-    string decoded = vocab.decode(ids);
-    cout << "Decoded back -> '" << decoded << "'" << endl;
+    Tensor E = emb.forward(ids);  // [2 x 4]
 
-    // 3) Full corpus as tokens
-    vector<int> tokens = vocab.encode(corpus);
-    cout << "Corpus token length = " << tokens.size() << endl;
+    cout << "E rows: " << E.rows() << ", cols: " << E.cols() << endl;
 
-    // 4) Dataset test
-    size_t block_size = 4;
-    size_t batch_size = 2;
+    // Loss: sum(E) just to trigger grads
+    Tensor loss = sum(E);
+    backward(loss);
 
-    CharDataset dataset(tokens, block_size);
-
-    Batch batch = dataset.next_batch(batch_size);
-
-    cout << "\nBatch.x (ids):" << endl;
-    for (size_t i = 0; i < batch.batch_size; ++i) {
-        cout << "row " << i << ": ";
-        for (size_t t = 0; t < batch.block_size; ++t) {
-            int id = batch.x[i * batch.block_size + t];
-            cout << id << " ";
+    cout << "W.grad (some rows should be non-zero):" << endl;
+    for (size_t i = 0; i < emb.W.rows(); ++i) {
+        for (size_t j = 0; j < emb.W.cols(); ++j) {
+            cout << emb.W.grad.data[i * emb.W.cols() + j] << " ";
         }
         cout << endl;
-    }
-
-    cout << "\nBatch.x (decoded):" << endl;
-    for (size_t i = 0; i < batch.batch_size; ++i) {
-        string row;
-        for (size_t t = 0; t < batch.block_size; ++t) {
-            int id = batch.x[i * batch.block_size + t];
-            row.push_back(vocab.decode({id})[0]);
-        }
-        cout << "row " << i << ": '" << row << "'" << endl;
-    }
-
-    cout << "\nBatch.y (decoded):" << endl;
-    for (size_t i = 0; i < batch.batch_size; ++i) {
-        string row;
-        for (size_t t = 0; t < batch.block_size; ++t) {
-            int id = batch.y[i * batch.block_size + t];
-            row.push_back(vocab.decode({id})[0]);
-        }
-        cout << "row " << i << ": '" << row << "'" << endl;
     }
 
     return 0;
