@@ -2,6 +2,8 @@
 #include "../math/matrix.hpp"
 
 #include <stdexcept>
+#include <cmath>
+#include <vector>
 
 namespace engine {
     using namespace std;
@@ -292,14 +294,14 @@ namespace engine {
     
                 if (a.require_grad()) {
                     a.grad().resize(grad_out.rows, grad_out.cols, 0.0);
-                    for (std::size_t i = 0; i < grad_out.size(); ++i) {
+                    for (size_t i = 0; i < grad_out.size(); ++i) {
                         a.grad().data[i] += grad_out.data[i];      // d/d a: +1
                     }
                 }
     
                 if (b.require_grad()) {
                     b.grad().resize(grad_out.rows, grad_out.cols, 0.0);
-                    for (std::size_t i = 0; i < grad_out.size(); ++i) {
+                    for (size_t i = 0; i < grad_out.size(); ++i) {
                         b.grad().data[i] -= grad_out.data[i];      // d/d b: -1
                     }
                 }
@@ -308,18 +310,18 @@ namespace engine {
     
         Tensor sub(const Tensor& a, const Tensor& b) {
             if (a.rows() != b.rows() || a.cols() != b.cols()) {
-                throw std::invalid_argument("sub: shape mismatch");
+                throw invalid_argument("sub: shape mismatch");
             }
     
             math::Matrix out_data(a.rows(), a.cols(), 0.0);
-            for (std::size_t i = 0; i < a.size(); ++i) {
+            for (size_t i = 0; i < a.size(); ++i) {
                 out_data.data[i] = a.data().data[i] - b.data().data[i];
             }
     
             bool requires = a.require_grad() || b.require_grad();
             Tensor out(out_data, requires);
             if (requires) {
-                auto node = std::make_shared<SubNode>();
+                auto node = make_shared<SubNode>();
                 node->inputs = { a, b };
                 out.p->grad_fn = node;
             }
@@ -335,7 +337,7 @@ namespace engine {
 
             if (a.require_grad()) {
                 a.grad().resize(grad_out.rows, grad_out.cols, 0.0);
-                for (std::size_t i = 0; i < grad_out.size(); ++i) {
+                for (size_t i = 0; i < grad_out.size(); ++i) {
                     double d = b.data().data[i];  // ∂(a*b)/∂a = b
                     a.grad().data[i] += grad_out.data[i] * d;
                 }
@@ -343,7 +345,7 @@ namespace engine {
 
             if (b.require_grad()) {
                 b.grad().resize(grad_out.rows, grad_out.cols, 0.0);
-                for (std::size_t i = 0; i < grad_out.size(); ++i) {
+                for (size_t i = 0; i < grad_out.size(); ++i) {
                     double d = a.data().data[i];  // ∂(a*b)/∂b = a
                     b.grad().data[i] += grad_out.data[i] * d;
                 }
@@ -353,18 +355,18 @@ namespace engine {
 
     Tensor hadamard(const Tensor& a, const Tensor& b) {
         if (a.rows() != b.rows() || a.cols() != b.cols()) {
-            throw std::invalid_argument("hadamard: shape mismatch");
+            throw invalid_argument("hadamard: shape mismatch");
         }
 
         math::Matrix out_data(a.rows(), a.cols(), 0.0);
-        for (std::size_t i = 0; i < a.size(); ++i) {
+        for (size_t i = 0; i < a.size(); ++i) {
             out_data.data[i] = a.data().data[i] * b.data().data[i];
         }
 
         bool requires = a.require_grad() || b.require_grad();
         Tensor out(out_data, requires);
         if (requires) {
-            auto node = std::make_shared<HadamardNode>();
+            auto node = make_shared<HadamardNode>();
             node->inputs = { a, b };
             out.p->grad_fn = node;
         }
@@ -381,7 +383,7 @@ namespace engine {
                 if (!a.require_grad()) return;
     
                 a.grad().resize(grad_out.rows, grad_out.cols, 0.0);
-                for (std::size_t i = 0; i < grad_out.size(); ++i) {
+                for (size_t i = 0; i < grad_out.size(); ++i) {
                     a.grad().data[i] += alpha * grad_out.data[i];
                 }
             }
@@ -389,14 +391,14 @@ namespace engine {
     
         Tensor scale(const Tensor& a, double alpha) {
             math::Matrix out_data(a.rows(), a.cols(), 0.0);
-            for (std::size_t i = 0; i < a.size(); ++i) {
+            for (size_t i = 0; i < a.size(); ++i) {
                 out_data.data[i] = alpha * a.data().data[i];
             }
     
             bool requires = a.require_grad();
             Tensor out(out_data, requires);
             if (requires) {
-                auto node = std::make_shared<ScaleNode>(alpha);
+                auto node = make_shared<ScaleNode>(alpha);
                 node->inputs = { a };
                 out.p->grad_fn = node;
             }
@@ -466,19 +468,19 @@ namespace engine {
             Tensor& x = inputs[0];
             if (!x.require_grad()) return;
 
-            std::size_t in_rows = x.rows();
-            std::size_t in_cols = x.cols();
+            size_t in_rows = x.rows();
+            size_t in_cols = x.cols();
 
             // grad_out should be [in_cols x in_rows]
             if (grad_out.rows != in_cols || grad_out.cols != in_rows) {
-                throw std::runtime_error("TransposeNode::backward: shape mismatch");
+                throw runtime_error("TransposeNode::backward: shape mismatch");
             }
 
             x.grad().resize(in_rows, in_cols, 0.0);
 
             // dL/dx(i,j) = grad_out(j,i)
-            for (std::size_t i = 0; i < in_rows; ++i) {
-                for (std::size_t j = 0; j < in_cols; ++j) {
+            for (size_t i = 0; i < in_rows; ++i) {
+                for (size_t j = 0; j < in_cols; ++j) {
                     x.grad().data[i * in_cols + j] +=
                         grad_out.data[j * in_rows + i];
                 }
@@ -493,7 +495,7 @@ namespace engine {
         Tensor out(out_data, requires);
 
         if (requires) {
-            auto node = std::make_shared<TransposeNode>();
+            auto node = make_shared<TransposeNode>();
             node->inputs = { x};
             out.p->grad_fn = node;
         }
@@ -501,6 +503,122 @@ namespace engine {
         return out;
     }
 
-    
+    struct CrossEntropyNode : public Node {
+        vector<int> targets;
+        size_t T;
+        size_t V; //vocab size
+
+        void backward(const math::Matrix& grad_out) override{
+            //grad_out is scalar
+            double g = grad_out.data[0];
+
+            Tensor& logits = inputs[0];
+            if(!logits.require_grad()) return;
+
+            //logits.data = [T * V]
+            const math::Matrix& Z = logits.data();
+
+            if(Z.rows != T || Z.cols != V) throw runtime_error("CrossEntropy - shape mismatch");
+
+            //prepare grad
+            math::Matrix& dZ = logits.grad();
+            dZ.resize(T, V, 0.0);
+
+            //for each row i, computer softmax and grad
+            for(size_t i = 0; i <T; i++){
+                //stability : subtract max
+                double row_max = Z.data[i*V];
+                for(size_t j = 1; j< V; j++){
+                    double val = Z.data[i*V + j];
+                    if(val > row_max) row_max = val;
+                }
+
+                double denom = 0.0;
+                vector<double> exp_row(V);
+
+                for (size_t j = 0; j < V; ++j) {
+                    double e = exp(Z.data[i * V + j] - row_max);
+                    exp_row[j] = e;
+                    denom += e;
+                }
+
+                if (denom == 0.0) {
+                    // shouldn't happen in practice, but avoid NaN
+                    continue;
+                }
+
+                int y = targets[i];
+                if (y < 0 || static_cast<size_t>(y) >= V) {
+                    throw runtime_error("CrossEntropyNode::backward: target out of range");
+                }
+
+                for (size_t j = 0; j < V; ++j) {
+                    double p_ij = exp_row[j] / denom;
+                    double indicator = (static_cast<int>(j) == y) ? 1.0 : 0.0;
+                    double dL_dz = (p_ij - indicator) * (g / static_cast<double>(T));
+                    dZ.data[i * V + j] += dL_dz;
+                }
+            }
+        }
+    };
+
+
+
+    Tensor cross_entropy_logits(const Tensor& logits, const vector<int>& targets){
+        size_t T = logits.rows();
+        size_t V = logits.cols();
+
+        if(targets.size() != T){
+            throw invalid_argument("cross entropy logits - target size must equal logits.rows()");
+        }
+        const math::Matrix& Z = logits.data();
+
+        double loss_val = 0.0;
+
+        for(size_t i = 0; i< T; i++){
+            int y = targets[i];
+            if (y < 0 || static_cast<size_t>(y) >= V) {
+                throw invalid_argument("cross_entropy_logits: target index out of range");
+            }
+
+            // stability: subtract max
+            double row_max = Z.data[i * V];
+            for (size_t j = 1; j < V; ++j) {
+                double val = Z.data[i * V + j];
+                if (val > row_max) row_max = val;
+            }
+
+            double denom = 0.0;
+            double num_y = 0.0;
+            for (size_t j = 0; j < V; ++j) {
+                double e = exp(Z.data[i * V + j] - row_max);
+                denom += e;
+                if (static_cast<int>(j) == y) {
+                    num_y = e;
+                }
+            }
+
+            // p_y = num_y / denom
+            double p_y = num_y / (denom + 1e-12); // small epsilon to avoid /0
+            loss_val += -log(p_y + 1e-12);
+        }
+
+        loss_val /= static_cast<double>(T);
+
+        math::Matrix m(1, 1, loss_val);
+        bool requires = logits.require_grad();
+        Tensor out(m, requires);
+
+        if (requires) {
+            auto node = make_shared<CrossEntropyNode>();
+            node->targets = targets;
+            node->T = T;
+            node->V = V;
+            node->inputs = { logits };
+            out.p->grad_fn = node;
+        }
+
+        return out;
+    }
 
 } //namespace engine

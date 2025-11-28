@@ -1,71 +1,130 @@
 #include <iostream>
+#include <vector>
 #include <cstddef>
+#include <algorithm>
 
-#include "math/matrix.hpp"
 #include "engine/tensor.hpp"
 #include "engine/ops.hpp"
-#include "nn/self_attention.hpp"
-#include "nn/linear.hpp"
+#include "nn/char_transformer.hpp"
+#include "optim/sgd.hpp"
 
 using namespace std;
-using namespace math;
 using namespace engine;
 using namespace nn;
 
 int main() {
-    cout << "=== SelfAttention test ===" << endl;
+    cout << "=== CharTransformer tiny training test ===" << endl;
 
-    // sequence length T, model dimension d_model
+    // ----------------------------------------------------
+    // 1. Hyperparameters & fake "vocab"
+    // ----------------------------------------------------
+    std::size_t vocab_size = 8;   // pretend we have 8 chars in vocab
+    std::size_t d_model    = 8;
+    std::size_t d_ff       = 16;
+    bool causal            = true;
+
+    CharTransformerConfig cfg{
+        vocab_size,
+        d_model,
+        d_ff,
+        causal
+    };
+
+    CharTransformer model(cfg);
+
+    // Tiny toy "sequence": length T = 4
     std::size_t T = 4;
-    std::size_t d_model = 8;
+    std::vector<int> x_ids = {0, 1, 2, 3}; // input tokens
+    std::vector<int> y_ids = {1, 2, 3, 4}; // target: "next token"
 
-    // 1) Build a simple input X: [T x d_model]
-    Matrix X_m(T, d_model, 0.0);
-    for (std::size_t i = 0; i < T; ++i) {
-        for (std::size_t j = 0; j < d_model; ++j) {
-            X_m.data[i * d_model + j] = static_cast<double>(i + j);
+    // ----------------------------------------------------
+    // 2. Collect parameters for SGD as Tensor handles
+    //    (copies share same underlying TensorBody)
+    // ----------------------------------------------------
+    std::vector<Tensor> params;
+
+    // Embedding weights
+    params.push_back(model.emb.W);
+
+    // Self-attention weights inside the block
+    params.push_back(model.block.sa.W_q.W);
+    params.push_back(model.block.sa.W_k.W);
+    params.push_back(model.block.sa.W_v.W);
+    params.push_back(model.block.sa.W_o.W);
+
+    // Feed-forward weights + biases
+    params.push_back(model.block.ff1.W);
+    params.push_back(model.block.ff1.b);
+    params.push_back(model.block.ff2.W);
+    params.push_back(model.block.ff2.b);
+
+    // LM head weights + bias
+    params.push_back(model.lm_head.W);
+    params.push_back(model.lm_head.b);
+
+    double lr = 0.1;
+
+    // ----------------------------------------------------
+    // 3. Single forward/backward sanity test
+    // ----------------------------------------------------
+    {
+        Tensor logits = model.forward(x_ids); // [T x vocab_size]
+        cout << "logits: rows=" << logits.rows()
+             << ", cols=" << logits.cols() << endl;
+
+        Tensor loss = cross_entropy_logits(logits, y_ids);
+        cout << "Initial loss (no training) = "
+             << loss.data().data[0] << endl;
+
+        // Zero all grads
+        for (auto& p : params) {
+            if (p.require_grad()) p.zero_grad();
         }
-    }
 
-    // Wrap as Tensor with gradients
-    Tensor x(X_m, /*require_grad=*/true);
+        backward(loss);
 
-    // 2) Create self-attention layer (single-head, causal)
-    SelfAttentionConfig cfg{ d_model, /*causal=*/true };
-    SelfAttention attn(cfg);
-
-    // 3) Forward pass: y = SA(x), y: [T x d_model]
-    Tensor y = attn.forward(x);
-    cout << "y: rows=" << y.rows() << ", cols=" << y.cols() << endl;
-
-    // 4) Simple loss: sum of all entries in y
-    Tensor loss = sum(y);
-
-    // 5) Backward pass
-    backward(loss);
-
-    // 6) Inspect some gradients
-
-    cout << "\nSome gradients on x:" << endl;
-    for (std::size_t i = 0; i < T; ++i) {
-        cout << "row " << i << ": ";
-        for (std::size_t j = 0; j < d_model; ++j) {
-            double g = x.grad().data[i * d_model + j];
+        cout << "\nSome gradients on embedding W (row 0):" << endl;
+        std::size_t emb_cols = model.emb.W.cols();
+        cout << "emb.W.grad row 0: ";
+        for (std::size_t j = 0; j < std::min<std::size_t>(emb_cols, 8); ++j) {
+            double g = model.emb.W.grad().data[j];
             cout << g << " ";
         }
-        cout << endl;
+        cout << "\n" << endl;
     }
 
-    cout << "\nSome gradients on W_q:" << endl;
-    std::size_t Wq_rows = attn.W_q.W.rows();
-    std::size_t Wq_cols = attn.W_q.W.cols();
-    for (std::size_t i = 0; i < std::min<std::size_t>(Wq_rows, 3); ++i) {
-        cout << "row " << i << ": ";
-        for (std::size_t j = 0; j < std::min<std::size_t>(Wq_cols, 4); ++j) {
-            double g = attn.W_q.W.grad().data[i * Wq_cols + j];
-            cout << g << " ";
+    // ----------------------------------------------------
+    // 4. Tiny training loop: watch loss decrease
+    // ----------------------------------------------------
+    int steps = 1000;
+    for (int step = 0; step < steps; ++step) {
+        // Forward
+        Tensor logits = model.forward(x_ids);     // [T x vocab_size]
+        Tensor loss   = cross_entropy_logits(logits, y_ids); // scalar
+
+        if (step % 100 == 0) {
+            cout << "step " << step
+                 << "  loss = " << loss.data().data[0] << endl;
         }
-        cout << endl;
+
+        // Zero grads
+        for (auto& p : params) {
+            if (p.require_grad()) p.zero_grad();
+        }
+
+        // Backprop
+        backward(loss);
+
+        // SGD update
+        optim::sgd_step(params, lr);
+    }
+
+    // Final check
+    {
+        Tensor logits = model.forward(x_ids);
+        Tensor loss   = cross_entropy_logits(logits, y_ids);
+        cout << "\nFinal loss after training = "
+             << loss.data().data[0] << endl;
     }
 
     return 0;

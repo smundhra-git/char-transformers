@@ -2,6 +2,7 @@
 
 #include "tensor.hpp"
 #include "node.hpp"
+#include <vector>
 
 namespace engine {
     //forward declaration of add op
@@ -33,4 +34,9 @@ namespace engine {
     Tensor softmax_row(const Tensor& x);
 
     Tensor transpose(const Tensor& x);
+
+    //cross entropy loss from logits _ int targets
+    Tensor cross_entropy_logits(const Tensor& logits, const vector<int>& targets);
+
+
 } //namespace engine

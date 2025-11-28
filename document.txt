@@ -226,3 +226,20 @@ now a question to arise here is why am i doing this set? for that read the atten
 i was testing this and gor some eerror and deeper investigation i would classify myself as lucky till now because my pointers were leaving in the outer scope (main) and hence not dieing but now i have to refactor the code to introduce tensorbody and make tensor a handle
 
 i refctored the code, and now will be following the new ownership of Tensor and TensorBody - i also tested tested the self attention and it works
+
+now we will wrap it all in the transformer block 
+X - > SelfAttention -> residual -> MLP (Linear, ReLU -> Linear) -> Residial 
+
+then we will add a final output head Linear(d->model : Voab Size)
+implement cross entropy loss over next char prediction 
+and then test on real texts
+
+so lets write the full transformer block 
+we will keep single head, batch = 1. no layerform for v1
+so X E (contains)  R ^ (T * d_model)
+
+the transformer block works, and ow i will add an LM head + a cross entory loss op so that we can turn the [T * d_model] into [T * vocab size logits and train]
+
+now i am gonna wire this to my chardataset side and actually predict next chars
+
+well now i am putting the whole thing together and writing a test, will just use a tiny fake vocab of size 8
