@@ -192,3 +192,37 @@ input a vector<int> of token ids and output a tensor of shape [n*d_model] for ea
 dL/dWi += dL/Doutp - the node will store a copy of the ids inside itself to it does not scatter-add in backward
 
 so i did that step and tested it and it is working awesonly 
+
+
+next step is to have positional embeddings + reshaping, then i will build a single self-attention block and then stack a couple of those, finally build a Linear head for next char prediction 
+
+so if you remember we had written a row_softmax for Matrix, and now we are gonna write one for Tensor too 
+
+well that part is done and i tested it too; it works as intended. 
+
+also i read this - https://arxiv.org/pdf/2511.21522, and combined with the paper of AI Supply chain, I believe could make a complete cycle of trust in AI workflow which includes collecting data, labelling data - feeding into a neural net - getting responses and improving each step based on that, that could be an expansion from here but first would be the medical reasoning model 
+
+coming back, now we are ready to climb into seld-attention
+to do this, we will need two things - a tensor level transpose so we can do score - Q * K^t
+
+and a first self attension module that uses existing ops 
+
+first i am gonna write the tensor level traponse - thats done now 
+
+now i will build a single-head attention block that : Takes X of Shape [T * d_model] - sequence lentg T and embedding dimension 
+
+Computes the following 
+Q = X W_q
+K = X W_k
+V = X W_v
+scores = Q * K^t/sqrt(d_k) {d_k = d_model for now}
+apply casual mask
+P = softmax_rows(scores)
+Y = P * V 
+out = Y W_o
+
+now a question to arise here is why am i doing this set? for that read the attension if all you need paper linked above
+
+i was testing this and gor some eerror and deeper investigation i would classify myself as lucky till now because my pointers were leaving in the outer scope (main) and hence not dieing but now i have to refactor the code to introduce tensorbody and make tensor a handle
+
+i refctored the code, and now will be following the new ownership of Tensor and TensorBody - i also tested tested the self attention and it works

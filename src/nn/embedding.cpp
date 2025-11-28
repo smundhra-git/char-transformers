@@ -22,9 +22,9 @@ namespace nn {
         void backward(const math::Matrix& grad_out) override {
             //grad_out = [N* d_model]
 
-            Tensor* W = inputs[0];
+            Tensor& W = inputs[0];
 
-            if(!W->require_grad) return;
+            if(!W.require_grad()) return;
 
             size_t N = grad_out.rows;
             size_t d_model = grad_out.cols;
@@ -34,11 +34,11 @@ namespace nn {
             }
 
             //Ensure W.grad has correct shape : [vocab_size * d_model]
-            W->grad.resize(W->rows(), W->cols(), 0.0);
+            W.grad().resize(W.rows(), W.cols(), 0.0);
 
             for(size_t p = 0; p< N; p++){
                 int token_id = token_ids[p];
-                if(token_id < 0 || static_cast<size_t>(token_id) >= W->rows()){
+                if(token_id < 0 || static_cast<size_t>(token_id) >= W.rows()){
                     throw runtime_error("Embed - backward token id out of range");
                 }
 
@@ -46,7 +46,7 @@ namespace nn {
 
                 for(size_t j = 0; j < d_model; j++){
                     double g = grad_out.data[p * d_model + j];
-                    W->grad.data[row_w * d_model + j] += g;
+                    W.grad().data[row_w * d_model + j] += g;
                 }
             }
 
@@ -92,7 +92,7 @@ namespace nn {
             std::size_t row_w = static_cast<std::size_t>(token_id);
             for (std::size_t j = 0; j < d_model; ++j) {
                 out_data.data[p * d_model + j] =
-                    W.data.data[row_w * d_model + j];
+                    W.data().data[row_w * d_model + j];
             }
         }
 
@@ -100,8 +100,8 @@ namespace nn {
 
         // Register autograd node
         auto node = std::make_shared<EmbeddingNode>(token_ids);
-        node->inputs = { &W };  // only param W gets gradients
-        out.grad_fn = node;
+        node->inputs = { W};  // only param W gets gradients
+        out.p->grad_fn = node;
 
         return out;
     }

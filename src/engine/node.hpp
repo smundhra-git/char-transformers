@@ -16,7 +16,7 @@ namespace engine {
     struct Node : enable_shared_from_this<Node> {
         //pointer to input tensor. We do not own this; Tensor owns nodes via the shared_Ptr
 
-        vector<Tensor*> inputs;
+        vector<Tensor> inputs;
 
         //optional - we can track whether this node has been visited in a backward pass but for now we will just handle this in the backward() free function
 

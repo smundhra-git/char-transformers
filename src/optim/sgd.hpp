@@ -10,5 +10,5 @@ namespace optim {
     //param.data -= lr * param.grad
     //assumes grad has been filled by backward()
 
-    void sgd_step(const vector<engine::Tensor*>& params, double lr);
+    void sgd_step(const vector<engine::Tensor>& params, double lr);
 }

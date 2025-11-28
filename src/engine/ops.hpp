@@ -29,4 +29,8 @@ namespace engine {
 
     //alpha * a
     Tensor scale(const Tensor& a, double alpha);
+
+    Tensor softmax_row(const Tensor& x);
+
+    Tensor transpose(const Tensor& x);
 } //namespace engine

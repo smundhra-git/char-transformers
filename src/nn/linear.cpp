@@ -20,9 +20,9 @@ namespace nn {
         // inputs[2] = b
 
         void backward(const math::Matrix& grad_out) override {
-            Tensor* x = inputs[0];
-            Tensor* W = inputs[1];
-            Tensor* b = inputs[2];
+            Tensor& x = inputs[0];
+            Tensor& W = inputs[1];
+            Tensor& b = inputs[2];
 
             // Shapes:
             // x: [batch x in_features]
@@ -31,39 +31,39 @@ namespace nn {
             // grad_out: [batch x out_features]
 
             std::size_t batch = grad_out.rows;
-            std::size_t in_features = x->cols();
-            std::size_t out_features = W->cols();
+            std::size_t in_features = x.cols();
+            std::size_t out_features = W.cols();
 
             // dL/dx = grad_out * W^T
-            if (x->require_grad) {
-                math::Matrix W_T = math::transpose(W->data);
+            if (x.require_grad()) {
+                math::Matrix W_T = math::transpose(W.data());
                 math::Matrix grad_x = math::matmul(grad_out, W_T);
 
-                x->grad.resize(batch, in_features, 0.0);
-                for (std::size_t i = 0; i < x->grad.size(); ++i) {
-                    x->grad.data[i] += grad_x.data[i];
+                x.grad().resize(batch, in_features, 0.0);
+                for (std::size_t i = 0; i < x.grad().size(); ++i) {
+                    x.grad().data[i] += grad_x.data[i];
                 }
             }
 
             // dL/dW = x^T * grad_out
-            if (W->require_grad) {
-                math::Matrix x_T = math::transpose(x->data);
+            if (W.require_grad()) {
+                math::Matrix x_T = math::transpose(x.data());
                 math::Matrix grad_W = math::matmul(x_T, grad_out);
 
-                W->grad.resize(in_features, out_features, 0.0);
-                for (std::size_t i = 0; i < W->grad.size(); ++i) {
-                    W->grad.data[i] += grad_W.data[i];
+                W.grad().resize(in_features, out_features, 0.0);
+                for (std::size_t i = 0; i < W.grad().size(); ++i) {
+                    W.grad().data[i] += grad_W.data[i];
                 }
             }
 
             // dL/db = sum over rows of grad_out
-            if (b->require_grad) {
-                b->grad.resize(1, out_features, 0.0);
+            if (b.require_grad()) {
+                b.grad().resize(1, out_features, 0.0);
 
                 for (std::size_t i = 0; i < batch; ++i) {
                     for (std::size_t j = 0; j < out_features; ++j) {
                         double g = grad_out.data[i * out_features + j];
-                        b->grad.data[j] += g;
+                        b.grad().data[j] += g;
                     }
                 }
             }
@@ -102,23 +102,23 @@ namespace nn {
         std::size_t out_features = W.cols();
 
         // 1. Compute y_data = xW + b (matrix-level)
-        math::Matrix y_data = math::matmul(x.data, W.data); // [batch x out_features]
+        math::Matrix y_data = math::matmul(x.data(), W.data()); // [batch x out_features]
 
         for (std::size_t i = 0; i < batch; ++i) {
             for (std::size_t j = 0; j < out_features; ++j) {
-                y_data.data[i * out_features + j] += b.data.data[j];
+                y_data.data[i * out_features + j] += b.data().data[j];
             }
         }
 
         // 2. Wrap into a Tensor with autograd
-        bool requires = x.require_grad || W.require_grad || b.require_grad;
+        bool requires = x.require_grad() || W.require_grad() || b.require_grad();
         Tensor y(y_data, requires);
 
         if (requires) {
             auto node = std::make_shared<LinearNode>();
             // store pointers to existing, long-lived tensors
-            node->inputs = { &x, &W, &b };
-            y.grad_fn = node;
+            node->inputs = { x, W, b };
+            y.p->grad_fn = node;
         }
 
         return y;
