@@ -21,6 +21,8 @@ namespace nn {
         engine::Tensor ln2_gamma, ln2_beta;
 
         Block(const SelfAttentionConfig& cfg, size_t d_ff);
-        engine::Tensor forward(const engine::Tensor& x);
+        
+        // Forward with optional cache
+        engine::Tensor forward(const engine::Tensor& x, KVCache* cache = nullptr);
     };
 }

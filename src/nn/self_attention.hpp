@@ -1,6 +1,7 @@
 #pragma once
 #include "../engine/tensor.hpp"
 #include "linear.hpp"
+#include <vector>
 
 namespace nn {
     struct SelfAttentionConfig {
@@ -8,6 +9,22 @@ namespace nn {
         size_t n_head;
         size_t block_size;
         bool causal;
+    };
+    
+    // KV Cache structure
+    struct KVCache {
+        engine::Tensor k;
+        engine::Tensor v;
+        size_t current_len = 0; // Tracks how many tokens are cached
+        
+        // Clears cache (useful at start of generation)
+        void clear() {
+            current_len = 0;
+            // We don't free memory, just reset cursor
+            // Or we could release tensors.
+            k = engine::Tensor();
+            v = engine::Tensor();
+        }
     };
 
     class MultiHeadAttention {
@@ -23,6 +40,7 @@ namespace nn {
 
         MultiHeadAttention(const SelfAttentionConfig& cfg);
         
-        engine::Tensor forward(const engine::Tensor& x);
+        // Forward with optional KV Cache
+        engine::Tensor forward(const engine::Tensor& x, KVCache* cache = nullptr);
     };
 }

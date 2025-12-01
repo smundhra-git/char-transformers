@@ -1,0 +1,51 @@
+C++ is a high-performance general-purpose programming language created by Bjarne Stroustrup as an extension of the C programming language.
+It is an object-oriented language that supports encapsulation, inheritance, and polymorphism.
+C++ provides low-level memory manipulation features which make it ideal for system programming, game engines, and high-performance applications.
+The Standard Template Library (STL) provides a set of common classes for vectors, lists, queues, and stacks.
+C++11 introduced modern features like auto keyword, lambda expressions, smart pointers, and move semantics.
+RAII (Resource Acquisition Is Initialization) is a common idiom in C++ used for resource management.
+Templates allow generic programming, enabling functions and classes to operate with generic types.
+The const keyword is used to define constants and to prevent modification of variables or member functions.
+References in C++ provide an alias for another variable and are safer than pointers.
+Smart pointers like unique_ptr and shared_ptr help manage memory automatically and prevent memory leaks.
+Virtual functions allow derived classes to override methods in a base class, enabling runtime polymorphism.
+The volatile keyword tells the compiler that a variable's value may change at any time without any action being taken by the code the compiler finds nearby.
+Exception handling in C++ is done using try, catch, and throw blocks.
+Namespaces are used to organize code into logical groups and to prevent name collisions.
+The preprocessor handles directives like #include and #define before the actual compilation begins.
+Inline functions are a suggestion to the compiler to substitute the code of the function into its caller.
+Friend functions can access private and protected members of a class.
+Operator overloading allows redefining the way operators work for user-defined types.
+Move semantics and rvalue references allow efficient transfer of resources instead of copying.
+C++20 introduced concepts, modules, coroutines, and ranges to further modernize the language.
+Memory management in C++ is manual, but modern C++ encourages the use of RAII and smart pointers.
+Undefined behavior is a common issue in C++ when code violates language rules, leading to unpredictable results.
+The compilation process involves preprocessing, compilation, assembly, and linking.
+Header files typically contain declarations, while source files contain definitions.
+Static members belong to the class rather than any specific object instance.
+Constexpr specifies that the value of a variable or function can be computed at compile time.
+Lambda expressions provide a concise way to define anonymous function objects.
+The auto type specifier instructs the compiler to deduce the type of a variable from its initializer.
+Iterators are objects that point to an element in a container and can be used to traverse through elements.
+Multithreading support was standardized in C++11 with the thread library.
+Atomic operations allow lock-free concurrent programming.
+Mutexes and condition variables are synchronization primitives used in multithreaded programming.
+C++ supports multiple inheritance, allowing a class to inherit from more than one base class.
+The diamond problem in multiple inheritance is solved using virtual inheritance.
+Cast operators like static_cast, dynamic_cast, const_cast, and reinterpret_cast provide type conversions.
+The rule of three, rule of five, and rule of zero are guidelines for managing resources in classes.
+SFINAE (Substitution Failure Is Not An Error) is a technique used in template metaprogramming.
+Variadic templates allow templates to accept an arbitrary number of arguments.
+Type traits allow querying and modifying properties of types at compile time.
+The std::vector is a dynamic array that can resize itself automatically when an element is inserted or deleted.
+std::map is a sorted associative container that contains key-value pairs with unique keys.
+std::unordered_map is a hash table based container that stores elements formed by the combination of a key value and a mapped value.
+The standard library algorithms include functions for sorting, searching, counting, and manipulating ranges of elements.
+C++ is widely used in finance for high-frequency trading due to its low latency.
+Game development relies heavily on C++ for performance-critical rendering and physics engines.
+Embedded systems often use C++ for its ability to interface with hardware and limited resources.
+Operating systems like Windows and parts of Linux are written in C and C++.
+Browsers like Chrome and Firefox use C++ for their rendering engines.
+Machine learning libraries like TensorFlow and PyTorch have C++ backends for performance.
+Database systems like MySQL and MongoDB are implemented in C++.
+

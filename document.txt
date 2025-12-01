@@ -263,3 +263,11 @@ and npw i will use it to optimize by loss, now i switched from SGD to Adam in ma
 now i am happy and will test my program on something longer after pushing this to git
 
 wait before pushing i will write a quick Readme to redirect people here
+
+
+now i pulled up the code on cursor and asked it "what are the room for optimizing this fully"
+it suggested me the following - 
+1. KV caching - https://huggingface.co/blog/not-lain/kv-caching : I learned it here, looks interesting, shall implement now 
+2. zero copy views, just suggested to not copy the entire data vector at all times and just use a storage object, thought about this - easy to do, will be done 
+3. use mlti-threads, well the most basic suggestion it could have made, argumentative on if i will implement this 
+

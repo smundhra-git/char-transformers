@@ -17,7 +17,7 @@ namespace nn {
     class Transformer {
     public:
         Embedding tok_emb;
-        PositionalEncoding pos_enc; // Replaces learnable pos_emb
+        PositionalEncoding pos_enc; 
         std::vector<Block> blocks;
         engine::Tensor ln_f_gamma;
         engine::Tensor ln_f_beta;
@@ -28,5 +28,9 @@ namespace nn {
         Transformer(const TransformerConfig& cfg);
         
         engine::Tensor forward(const std::vector<int>& idx, size_t Batch);
+        
+        // Overload for generation with KV Cache
+        // Returns logits for the LAST token only (1, 1, V)
+        engine::Tensor forward_generate(int token, std::vector<KVCache>& caches);
     };
 }
