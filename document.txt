@@ -243,3 +243,23 @@ the transformer block works, and ow i will add an LM head + a cross entory loss 
 now i am gonna wire this to my chardataset side and actually predict next chars
 
 well now i am putting the whole thing together and writing a test, will just use a tiny fake vocab of size 8
+
+now we will move from the toy to a real cahr level lm on text
+
+i have refactored the entire code to use n-dim tensor engine similar to pytorch
+
+Word-level + Sinusoidal PE:
+I have now updated the repository to follow "Attention Is All You Need" more closely, since i watched this video to get a better grasp - https://www.youtube.com/watch?v=bCz4OMemCcA&t=26s - i would highly suggest watching it but again its upto you:
+the first thing i moved from char-lebel to world-level tokenization, learning words is cooler 
+secondly i incoporated positional encoding using the sine and cosine functions which our dear own Google Brain people suggested, updated the transformer to use this new positional encoding 
+
+lets run some tests 
+well the loss function stayed > 3.4 
+
+now when i was starting my research in the field of AI i read this basic article on geeks (99th percentile site fosho) - https://www.geeksforgeeks.org/deep-learning/adam-optimizer/
+
+and npw i will use it to optimize by loss, now i switched from SGD to Adam in main and i got a sub 0.003 loss 
+
+now i am happy and will test my program on something longer after pushing this to git
+
+wait before pushing i will write a quick Readme to redirect people here

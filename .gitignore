@@ -1,2 +1,41 @@
+# Object files
+*.o
+*.obj
+
+# Executables
+main
+*.exe
+*.out
+
+# Libraries
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+
+# Build directories
+build/
+cmake-build-debug/
+cmake-build-release/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# IDE settings
+.vscode/
+.idea/
+.DS_Store
+.cursor/
+
+# Data
+*.txt
+!document.txt
+!CMakeLists.txt
+data/corpus.txt
+
+# Logs
+*.log
+
 gpt.txt
-./main

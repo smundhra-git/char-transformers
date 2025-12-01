@@ -1,28 +1,26 @@
 #pragma once
-
+#include "../engine/tensor.hpp"
 #include "self_attention.hpp"
 #include "linear.hpp"
-#include "../engine/tensor.hpp"
 
-using namespace std;
-
-namespace nn{
-
-    struct TransformerBlockConfig{
-        size_t d_model; //embeddgings dimension
-        size_t d_ff; //hidden dimension in the MLP
-        bool casual; //pass through to self attention
+namespace nn {
+    class MLP {
+    public:
+        Linear c_fc;
+        Linear c_proj;
+        
+        MLP(size_t d_model, size_t d_ff);
+        engine::Tensor forward(const engine::Tensor& x);
     };
 
-    class TransformerBlock {
-        public :
-        SelfAttention sa; //self attention sublayer
-        nn::Linear ff1; //first FF layer : d_model ->d_ff
-        nn::Linear ff2; //pass through to selfattention
+    class Block {
+    public:
+        MultiHeadAttention sa;
+        MLP ff;
+        engine::Tensor ln1_gamma, ln1_beta;
+        engine::Tensor ln2_gamma, ln2_beta;
 
-        explicit TransformerBlock(const TransformerBlockConfig& cfg);
-
-        //forward 
-        engine::Tensor forward(engine::Tensor& x);
+        Block(const SelfAttentionConfig& cfg, size_t d_ff);
+        engine::Tensor forward(const engine::Tensor& x);
     };
 }

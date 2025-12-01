@@ -1,76 +1,149 @@
 #include "tensor.hpp"
 #include "node.hpp"
 
-#include <stdexcept>
-#include <unordered_set>
-#include <vector>
-#include <iostream>
+#include <numeric>
+#include <random>
+#include <algorithm>
+#include <iomanip>
+#include <unordered_set> // Fixed: Added this
+#include <cmath>
 
 namespace engine {
 
-    using std::runtime_error;
-    using std::unordered_set;
-    using std::vector;
+    // Utils
+    static std::vector<size_t> compute_strides(const Shape& shape) {
+        std::vector<size_t> strides(shape.size());
+        size_t s = 1;
+        for (int i = (int)shape.size() - 1; i >= 0; --i) {
+            strides[i] = s;
+            s *= shape[i];
+        }
+        return strides;
+    }
 
-    // ==========================
-    // Autograd: topo build + backward
-    // ==========================
+    Tensor::Tensor() : p(std::make_shared<TensorBody>()) {}
 
-    // helper DFS to build topological order of the nodes
-    static void build_topo(
-        Tensor& t,
-        unordered_set<TensorBody*>& visited,
-        vector<Tensor>& topo)
-    {
-        // identify this Tensor by its underlying storage pointer
-        TensorBody* key = t.p.get();
-        if (!key) return;
-        if (visited.count(key)) return;
-        visited.insert(key);
+    Tensor::Tensor(const Shape& shape, bool require_grad_) {
+        p = std::make_shared<TensorBody>();
+        p->shape = shape;
+        p->strides = compute_strides(shape);
+        
+        size_t size = 1;
+        for(auto s : shape) size *= s;
+        
+        p->data.resize(size, 0.0);
+        p->grad.resize(size, 0.0);
+        p->require_grad = require_grad_;
+    }
 
-        // recurse on parents (inputs of grad_fn), if any
-        if (t.p->grad_fn) {
-            for (Tensor& inp : t.p->grad_fn->inputs) {
-                build_topo(inp, visited, topo);
-            }
+    Tensor::Tensor(const std::vector<double>& data, const Shape& shape, bool require_grad_) {
+        p = std::make_shared<TensorBody>();
+        p->shape = shape;
+        p->strides = compute_strides(shape);
+        p->data = data;
+        
+        // Check size
+        size_t size = 1;
+        for(auto s : shape) size *= s;
+        if (data.size() != size) {
+            throw std::runtime_error("Tensor init: data size mismatch with shape");
         }
 
-        // push this tensor after its dependencies
+        p->grad.resize(size, 0.0);
+        p->require_grad = require_grad_;
+    }
+
+    void Tensor::zero_grad() {
+        std::fill(p->grad.begin(), p->grad.end(), 0.0);
+    }
+
+    Tensor Tensor::zeros(const Shape& shape, bool require_grad) {
+        return Tensor(shape, require_grad);
+    }
+
+    Tensor Tensor::constant(const Shape& shape, double value, bool require_grad) {
+        Tensor t(shape, require_grad);
+        std::fill(t.data().begin(), t.data().end(), value);
+        return t;
+    }
+
+    Tensor Tensor::randn(const Shape& shape, double mean, double std, bool require_grad) {
+        Tensor t(shape, require_grad);
+        static std::mt19937 gen(1337);
+        std::normal_distribution<> d(mean, std);
+        for(auto& v : t.data()) v = d(gen);
+        return t;
+    }
+    
+    Tensor Tensor::kaiming_uniform(const Shape& shape, bool require_grad) {
+        // Kaiming/He initialization
+        // Assumes shape is [fan_out, fan_in] or similar
+        Tensor t(shape, require_grad);
+        if (shape.size() < 2) return t; // fallback
+        
+        double fan_in = (double)shape[1]; // typical for Linear [out, in]
+        double bound = std::sqrt(6.0 / fan_in); // for Uniform
+        
+        static std::mt19937 gen(42);
+        std::uniform_real_distribution<> d(-bound, bound);
+        for(auto& v : t.data()) v = d(gen);
+        return t;
+    }
+
+    Tensor Tensor::reshape(const Shape& new_shape) const {
+        size_t current_size = numel();
+        size_t new_size = 1;
+        for(auto s : new_shape) new_size *= s;
+        
+        if(current_size != new_size) throw std::runtime_error("Reshape size mismatch");
+        
+        Tensor out(p->data, new_shape, p->require_grad);
+        return out;
+    }
+
+    // Topo sort
+    using VisitedSet = std::unordered_set<TensorBody*>;
+    using TopoList = std::vector<Tensor>;
+
+    static void build_topo(Tensor& t, VisitedSet& visited, TopoList& topo) {
+        if (!t.p) return;
+        if (visited.count(t.p.get())) return;
+        visited.insert(t.p.get());
+
+        if (t.grad_fn()) {
+            for (auto& input : t.grad_fn()->inputs) {
+                build_topo(input, visited, topo);
+            }
+        }
         topo.push_back(t);
     }
 
-    // implement a real graph traversal here
     void backward(Tensor& loss) {
-        // basic sanity check - we expect loss to be scalar (1x1) for now
-        if (!loss.require_grad()) {
-            // no gradients requested, nothing to do
-            return;
-        }
+        if (!loss.require_grad()) return;
+        
+        // Scalar check
+        if (loss.numel() != 1) throw std::runtime_error("Backward on non-scalar tensor");
 
-        if (loss.rows() != 1 || loss.cols() != 1) {
-            throw runtime_error("backward() currently only supports scalar loss (1x1 Tensor)");
-        }
-
-        // initialize gradient of loss dL/dL = 1
         loss.zero_grad();
-        if (loss.grad().size() == 0) {
-            throw runtime_error("backward(): loss.grad has zero size after zero_grad");
-        }
-        loss.grad().data[0] = 1.0;
+        loss.grad()[0] = 1.0;
 
-        // build topological order of nodes
-        unordered_set<TensorBody*> visited;
-        vector<Tensor> topo;
+        VisitedSet visited;
+        TopoList topo;
         build_topo(loss, visited, topo);
 
-        // reverse topo for backprop
         for (auto it = topo.rbegin(); it != topo.rend(); ++it) {
             Tensor& t = *it;
-            if (!t.p->grad_fn) continue;
-
-            // t.grad() is dL/d(output) for that node
-            t.p->grad_fn->backward(t.grad());
+            if (t.grad_fn()) {
+                t.grad_fn()->backward(t.grad());
+            }
         }
     }
 
-} // namespace engine
+    std::ostream& operator<<(std::ostream& os, const Tensor& t) {
+        os << "Tensor(";
+        os << "Shape=[";
+        for(auto s : t.shape()) os << s << " ";
+        os << "])";
+        return os;
+    }
+}

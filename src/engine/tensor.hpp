@@ -1,60 +1,69 @@
 #pragma once 
 
-#include "../math/matrix.hpp"
 #include <memory>
 #include <vector>
-
-using namespace std;
+#include <string>
+#include <iostream>
+#include <numeric>
 
 namespace engine {
+
     struct Node; // Forward declaration
 
-    struct TensorBody {
-        math::Matrix data;
-        math::Matrix grad;
-        bool require_grad;
-        shared_ptr<Node> grad_fn;
+    using Shape = std::vector<size_t>;
 
-        TensorBody(): data(), grad(), require_grad(false), grad_fn(nullptr) {}
+    struct TensorBody {
+        std::vector<double> data;
+        std::vector<double> grad;
+        Shape shape;
+        std::vector<size_t> strides;
+        bool require_grad;
+        std::shared_ptr<Node> grad_fn;
+
+        TensorBody() : require_grad(false), grad_fn(nullptr) {}
     };
 
-    //tensor : wraps a math::Matrix and autograd metada
-    //for now we will keep this as 2x2 only, which is fine for our use case, later we can change this? Ofcourse we can
-    //TODO:: UPDATE THIS TO N-Dim
-
     class Tensor {
-        public :
-            shared_ptr<TensorBody> p;
+    public:
+        std::shared_ptr<TensorBody> p;
 
-            Tensor() : p(make_shared<TensorBody>()) {};
-            Tensor(const math::Matrix& values, bool require_grad_){
-                p = make_shared<TensorBody>();
-                p->data = values;
-                p->grad = math::Matrix(values.rows, values.cols, 0.0);
-                p->require_grad = require_grad_;
-                p->grad_fn = nullptr;
-            }
+        Tensor();
+        
+        // Create from shape
+        Tensor(const Shape& shape, bool require_grad = false);
+        
+        // Create from flat data + shape
+        Tensor(const std::vector<double>& data, const Shape& shape, bool require_grad = false);
 
-            //accessors 
-            size_t rows() const { return p->data.rows; }
-            size_t cols() const { return p->data.cols;}
-            size_t size() const { return p->data.size(); }
+        // Accessors
+        const Shape& shape() const { return p->shape; }
+        size_t shape(size_t dim) const { return p->shape[dim]; }
+        size_t dim() const { return p->shape.size(); }
+        size_t numel() const { return p->data.size(); }
+        
+        std::vector<double>& data() { return p->data; }
+        const std::vector<double>& data() const { return p->data; }
 
-            math::Matrix& data() {return p->data;}
+        std::vector<double>& grad() { return p->grad; }
+        const std::vector<double>& grad() const { return p->grad; }
 
-            const math::Matrix& data() const { return p->data; }
+        bool require_grad() const { return p->require_grad; }
+        std::shared_ptr<Node>& grad_fn() { return p->grad_fn; }
 
-            math::Matrix& grad() {return p->grad;}
+        void zero_grad();
 
-            const math::Matrix& grad() const { return p->grad; }
-            
-            bool require_grad() const {return p->require_grad;}
+        // Helpers
+        static Tensor zeros(const Shape& shape, bool require_grad = false);
+        static Tensor constant(const Shape& shape, double value, bool require_grad = false);
+        static Tensor randn(const Shape& shape, double mean = 0.0, double std = 1.0, bool require_grad = false);
+        static Tensor kaiming_uniform(const Shape& shape, bool require_grad = false);
 
-            void zero_grad(){
-                p->grad.resize(p->data.rows, p->data.cols, 0.0);
-                p->grad.fill(0.0);
-            }
+        // Views/Reshape
+        Tensor reshape(const Shape& new_shape) const; 
     };
 
     void backward(Tensor& loss);
+    
+    // Debug printer
+    std::ostream& operator<<(std::ostream& os, const Tensor& t);
 }

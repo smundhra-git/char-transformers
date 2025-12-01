@@ -1,84 +1,96 @@
 #include "self_attention.hpp"
-
-#include <cmath>
-#include <stdexcept>
-
-#include "../math/matrix.hpp"
 #include "../engine/ops.hpp"
-#include "../engine/tensor.hpp"
+#include <cmath>
 
 namespace nn {
-    using namespace std;
-    using engine::Tensor;
-    using engine::matmul;
-    using engine::scale;
-    using engine::softmax_row;
-    using engine::transpose;
-    using math::Matrix;
+    using namespace engine;
 
-    //helper a casual mask matrix [T * T]
-    //mask (i, j ) = 0 if j <= i else -1e9
+    MultiHeadAttention::MultiHeadAttention(const SelfAttentionConfig& cfg)
+        : w_q({cfg.d_model, cfg.d_model}),
+          w_k({cfg.d_model, cfg.d_model}),
+          w_v({cfg.d_model, cfg.d_model}),
+          w_o({cfg.d_model, cfg.d_model}),
+          n_head(cfg.n_head), d_model(cfg.d_model), causal(cfg.causal)
+    {}
 
-    static Matrix build_casual_mask(size_t T) {
-        Matrix m(T, T, 0.0);
-        double neg = -1e9;
-        for(size_t i = 0; i < T; i++){
-            for(size_t j = 0; j < T; j++){
-                if (j > i) {
-                    m.data[i* T + j] = neg;
-                } else {
-                    m.data[i* T + j] = 0.0;
+    Tensor MultiHeadAttention::forward(const Tensor& x) {
+        // x: (B, T, D)
+        size_t B = x.shape(0);
+        size_t T = x.shape(1);
+        size_t D = d_model;
+        size_t H = n_head;
+        size_t C = D / H; // head dim
+
+        // Projections: (B, T, D)
+        Tensor q = w_q.forward(x);
+        Tensor k = w_k.forward(x);
+        Tensor v = w_v.forward(x);
+
+        // View as heads: (B, T, H, C)
+        q = reshape(q, {B, T, H, C});
+        k = reshape(k, {B, T, H, C});
+        v = reshape(v, {B, T, H, C});
+
+        // Transpose for attention: (B, H, T, C)
+        q = permute(q, {0, 2, 1, 3});
+        k = permute(k, {0, 2, 1, 3});
+        v = permute(v, {0, 2, 1, 3});
+
+        // Attention Scores: Q @ K^T
+        // K is (B, H, T, C), we want K^T as (B, H, C, T)
+        // transpose(tensor) flips last two dims.
+        Tensor k_t = transpose(k);
+        
+        Tensor scores = matmul(q, k_t); // (B, H, T, T)
+        scores = scale(scores, 1.0 / std::sqrt((double)C));
+
+        // Masking
+        if (causal) {
+            // Create mask (T, T)
+            // We need to add it to (B, H, T, T).
+            // Since we lack full broadcast, let's just manually fill a tensor of same shape?
+            // Or implement a `masked_fill` op. 
+            // For simplicity/speed in this limited engine: 
+            // I will create a "CausalMaskAdd" op in ops?
+            // Or loop in C++ and add -inf.
+            
+            // Let's assume we have an `add_mask` op or similar. 
+            // I'll create `mask_causal` in ops.cpp later?
+            // I will skip mask for now to ensure compilation, but for accuracy it's needed.
+            // HACK: Just rely on the model learning to ignore future? No, that breaks causality.
+            // I will implement a manual causal mask loop here using data() access.
+            // It's efficient enough for CPU.
+            
+            double neg = -1e9;
+            double* ptr = scores.data().data();
+            // Shape (B, H, T, T)
+            size_t inner = T * T;
+            size_t outer = B * H;
+            
+            for(size_t o=0; o<outer; ++o) {
+                double* matrix = ptr + o * inner;
+                for(size_t i=0; i<T; ++i) {
+                    for(size_t j=i+1; j<T; ++j) { // j > i -> future
+                        matrix[i * T + j] = neg;
+                    }
                 }
             }
         }
 
-        return m;
+        Tensor attn = softmax(scores, -1); // (B, H, T, T)
+        
+        // Output: Attn @ V
+        // (B, H, T, T) @ (B, H, T, C) -> (B, H, T, C)
+        // Wait, V is (B, H, T, C).
+        // Matmul last 2 dims: (T, T) @ (T, C) -> (T, C). Correct.
+        Tensor y = matmul(attn, v);
+
+        // Reassemble: (B, T, H, C)
+        y = permute(y, {0, 2, 1, 3}); 
+        
+        // Flatten: (B, T, D)
+        y = reshape(y, {B, T, D});
+
+        return w_o.forward(y);
     }
-
-    SelfAttention::SelfAttention(const SelfAttentionConfig& cfg) :
-        W_q({cfg.d_model, cfg.d_model}),
-        W_k({cfg.d_model, cfg.d_model}),
-        W_v({cfg.d_model, cfg.d_model}),
-        W_o({cfg.d_model, cfg.d_model}),
-        casual(cfg.casual) 
-        {
-            if (cfg.d_model == 0) {
-                throw runtime_error("SelfAttention : d_model must be > 0");
-            }
-        }
-
-        Tensor SelfAttention::forward(Tensor& x){
-            //x : [T * d_model]
-            size_t T = x.rows();
-            size_t d_model = x.cols();
-            
-            // Linear projections 
-            Tensor Q = W_q.forward(x);
-            Tensor K = W_k.forward(x);
-            Tensor V = W_v.forward(x);
-
-            //scores 
-            Tensor K_t = transpose(K);
-            Tensor scores = matmul(Q, K_t);
-
-            double scale_factor = 1.0/sqrt(static_cast<double>(d_model));
-            scores = scale(scores, scale_factor);
-
-            //casual mask (if enabled)
-            if(casual){
-                Matrix mask_m = build_casual_mask(T);
-                Tensor mask_t(mask_m, false);
-                scores = engine::add(scores, mask_t);
-            }
-
-            //softmax ocer rows - for attention probabilities
-            Tensor P = softmax_row(scores);
-
-            //weighted sum over values Y = P * V
-            Tensor Y = matmul(P, V);
-
-            Tensor out = W_o.forward(Y);
-
-            return out;
-        }
 }

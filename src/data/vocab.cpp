@@ -3,32 +3,48 @@
 #include <algorithm>
 #include <stdexcept>
 #include <unordered_set>
+#include <sstream>
 
 using namespace std;
 
-namespace data{
+namespace data {
     Vocab::Vocab() : built(false) {};
+
+    // Helper to split string by whitespace
+    vector<string> split(const string& s) {
+        vector<string> tokens;
+        string token;
+        istringstream tokenStream(s);
+        while (getline(tokenStream, token, ' ')) {
+            if (!token.empty()) {
+                tokens.push_back(token);
+            }
+        }
+        return tokens;
+    }
 
     void Vocab::build_from_text(const string& text){
         stoi.clear();
         itos.clear();
         
-        unordered_set<char> uniq;
+        unordered_set<string> uniq;
+        vector<string> words = split(text);
 
-        uniq.reserve(text.size()); //at worse all unique
+        // Reserve helps performance
+        uniq.reserve(words.size()); 
 
-        for(char c : text){
-            uniq.insert(c);
+        for(const auto& w : words){
+            uniq.insert(w);
         }
 
-        //make ids deterministic, sort chars
-        vector<char> chars(uniq.begin(), uniq.end());
-        sort(chars.begin(), chars.end());
+        // make ids deterministic, sort words
+        vector<string> sorted_words(uniq.begin(), uniq.end());
+        sort(sorted_words.begin(), sorted_words.end());
 
-        itos = chars;
+        itos = sorted_words;
         stoi.reserve(itos.size());
 
-        for(size_t i = 0; i< itos.size(); i++){
+        for(size_t i = 0; i < itos.size(); i++){
             stoi[itos[i]] = static_cast<int>(i);
         }
         built = true;
@@ -39,11 +55,18 @@ namespace data{
             throw runtime_error("Vocab not built");
         }
         vector<int> ids;
-        ids.reserve(s.size());
-        for(char c : s){
-            auto it = stoi.find(c);
+        vector<string> words = split(s);
+        ids.reserve(words.size());
+        
+        for(const auto& w : words){
+            auto it = stoi.find(w);
+            // In a real system, we'd handle <UNK>, but here we throw/skip or better:
+            // If not found, we can just skip or throw. Let's throw for safety now.
             if(it == stoi.end()){
-                throw runtime_error("Vocab encode - unknown char");
+                 // For robustness, maybe skip or use a default? 
+                 // But prompt implies "perfectly like how any thing built on Attention..."
+                 // Usually implies a fixed vocab. Let's throw to alert mismatch.
+                throw runtime_error("Vocab encode - unknown word: " + w);
             }
             ids.push_back(it->second);
         }
@@ -55,13 +78,14 @@ namespace data{
             throw runtime_error("Vocab not built");
         }
         string s;
-        s.reserve(ids.size());
-
-        for(int id : ids){
+        
+        for(size_t i = 0; i < ids.size(); ++i){
+            int id = ids[i];
             if( id < 0 || static_cast<size_t>(id) >= itos.size()){
                 throw runtime_error("Vocab id out of range");
             }
-            s.push_back(itos[static_cast<size_t>(id)]);
+            s += itos[static_cast<size_t>(id)];
+            if (i < ids.size() - 1) s += " ";
         }
 
         return s;

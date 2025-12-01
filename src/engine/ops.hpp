@@ -1,42 +1,37 @@
-#pragma once 
+#pragma once
 
 #include "tensor.hpp"
-#include "node.hpp"
-#include <vector>
 
 namespace engine {
-    //forward declaration of add op
+
+    // Element-wise ops
     Tensor add(const Tensor& a, const Tensor& b);
-
-    //sums all elements of a into a scalar (1x1) tensor
-    Tensor sum(const Tensor& a);
-
+    Tensor sub(const Tensor& a, const Tensor& b);
+    Tensor mul(const Tensor& a, const Tensor& b); // element-wise
+    Tensor scale(const Tensor& a, double alpha);
+    
+    // Matrix/Batch ops
+    // Matmul supports broadcasting:
+    // (..., M, K) @ (..., K, N) -> (..., M, N)
     Tensor matmul(const Tensor& a, const Tensor& b);
 
-    //ReLu activation
+    // Transpose last two dimensions
+    Tensor transpose(const Tensor& a);
+    
+    // Permute dimensions (generic transpose)
+    Tensor permute(const Tensor& a, const std::vector<size_t>& dims);
+
+    // Reshape (differentiable view)
+    Tensor reshape(const Tensor& a, const Shape& shape);
+
+    // Activations
     Tensor relu(const Tensor& x);
+    Tensor softmax(const Tensor& x, int dim = -1);
+    Tensor gelu(const Tensor& x); // Gaussian Error Linear Unit (often used in Transformers)
 
-    //y(i,j) = x(i, j) + b(0, j)
-    Tensor bias_add(const Tensor& x, const Tensor& b);
+    // Normalization
+    Tensor layer_norm(const Tensor& x, const Tensor& gamma, const Tensor& beta, double eps = 1e-5);
 
-    //mean squared error loss, same same pred and target return 1x1 scalar
-    Tensor mse_loss(Tensor& pred, Tensor& target);
-
-    //elemntwise a-b
-    Tensor sub(const Tensor&a, const Tensor& b);
-
-    //elementwise a*b
-    Tensor hadamard(const Tensor& a, const Tensor& b);
-
-    //alpha * a
-    Tensor scale(const Tensor& a, double alpha);
-
-    Tensor softmax_row(const Tensor& x);
-
-    Tensor transpose(const Tensor& x);
-
-    //cross entropy loss from logits _ int targets
-    Tensor cross_entropy_logits(const Tensor& logits, const vector<int>& targets);
-
-
-} //namespace engine
+    // Loss
+    Tensor cross_entropy(const Tensor& logits, const Tensor& target); // logits: (B, T, V), target: (B, T) indices
+}

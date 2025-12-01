@@ -1,31 +1,28 @@
 #pragma once
-
 #include "../engine/tensor.hpp"
 #include "linear.hpp"
 
-using namespace std;
-
-namespace nn{
+namespace nn {
     struct SelfAttentionConfig {
-        size_t d_model; //i/o dimesnion
-        bool casual; //if true, apply casual mask (no loooking ahead)
-
+        size_t d_model;
+        size_t n_head;
+        size_t block_size;
+        bool causal;
     };
 
-    //single head self-attention, batch_size = 1 for now
-    class SelfAttention {
-        public : 
-            nn::Linear W_q;
-            nn::Linear W_k;
-            nn::Linear W_v;
-            nn::Linear W_o;
+    class MultiHeadAttention {
+    public:
+        Linear w_q;
+        Linear w_k;
+        Linear w_v;
+        Linear w_o;
+        
+        size_t n_head;
+        size_t d_model;
+        bool causal;
 
-            bool casual;
-
-            explicit SelfAttention(const SelfAttentionConfig& cfg);
-
-            //forward x : [T * d_model] return [T*d_model]
-
-            engine::Tensor forward (engine::Tensor& x);
+        MultiHeadAttention(const SelfAttentionConfig& cfg);
+        
+        engine::Tensor forward(const engine::Tensor& x);
     };
 }

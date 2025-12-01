@@ -1,109 +1,68 @@
 #include "embedding.hpp"
-
-#include "../math/matrix.hpp"
 #include "../engine/node.hpp"
-#include <random>
 #include <stdexcept>
 
 namespace nn {
+    using namespace engine;
     using namespace std;
-    using engine::Tensor;
-    using math::Matrix;
 
-    //autograd model for embeddings lookup
-    //out[p, :] = W[token_ids[p], :]
-    struct EmbeddingNode : public engine::Node {
-        vector<int> token_ids; //size = N
+    struct EmbeddingNode : public Node {
+        vector<int> ids;
+        EmbeddingNode(const vector<int>& i) : ids(i) {}
 
-        explicit EmbeddingNode(const vector<int>& ids)
-            : token_ids(ids) {}
-        
-
-        void backward(const math::Matrix& grad_out) override {
-            //grad_out = [N* d_model]
-
+        void backward(const vector<double>& grad_out) override {
             Tensor& W = inputs[0];
+            if (!W.require_grad()) return;
 
-            if(!W.require_grad()) return;
+            // grad_out matches output shape (B, T, D)
+            // ids match (B, T)
+            size_t D = W.shape(1);
+            size_t N = ids.size();
 
-            size_t N = grad_out.rows;
-            size_t d_model = grad_out.cols;
+            // Sparse update
+            double* w_grad = W.grad().data();
+            const double* g = grad_out.data();
 
-            if (N != token_ids.size()){
-                throw runtime_error("Size mismatch in embedding - backward");
-            }
-
-            //Ensure W.grad has correct shape : [vocab_size * d_model]
-            W.grad().resize(W.rows(), W.cols(), 0.0);
-
-            for(size_t p = 0; p< N; p++){
-                int token_id = token_ids[p];
-                if(token_id < 0 || static_cast<size_t>(token_id) >= W.rows()){
-                    throw runtime_error("Embed - backward token id out of range");
-                }
-
-                size_t row_w = static_cast<size_t>(token_id);
-
-                for(size_t j = 0; j < d_model; j++){
-                    double g = grad_out.data[p * d_model + j];
-                    W.grad().data[row_w * d_model + j] += g;
+            for (size_t i = 0; i < N; ++i) {
+                int idx = ids[i];
+                // Accumulate gradient
+                double* row = w_grad + idx * D;
+                const double* g_row = g + i * D;
+                for (size_t j = 0; j < D; ++j) {
+                    row[j] += g_row[j];
                 }
             }
-
         }
     };
 
-    Embedding::Embedding(const EmbeddingConfig& cfg) : W(){
-        if(cfg.vocab_size == 0 || cfg.d_model == 0){
-            throw runtime_error("Embedding - vocab size and d_model must be > 0");
-        }
-
-
-        random_device rd;
-        mt19937 gen(rd());
-        uniform_real_distribution<double> distrib(-0.1, 0.1);
-
-        Matrix w_matrix(cfg.vocab_size, cfg.d_model, 0.0);
-        for(size_t i = 0; i<w_matrix.size(); i++){
-            w_matrix.data[i] = distrib(gen);
-        }
-
-        W = Tensor(w_matrix, true);
-
+    Embedding::Embedding(const EmbeddingConfig& cfg) {
+        W = Tensor::randn({cfg.vocab_size, cfg.d_model}, 0.0, 0.02, true);
     }
 
-    Tensor Embedding::forward(const std::vector<int>& token_ids) {
-        if (token_ids.empty()) {
-            throw std::runtime_error("Embedding::forward: token_ids empty");
+    Tensor Embedding::forward(const std::vector<int>& token_ids, size_t Batch, size_t T) {
+        size_t N = token_ids.size();
+        if (N != Batch * T) throw runtime_error("Embedding forward: IDs size mismatch");
+
+        size_t D = W.shape(1);
+        Tensor out({Batch, T, D}, true);
+
+        const double* w_data = W.data().data();
+        double* out_data = out.data().data();
+
+        for (size_t i = 0; i < N; ++i) {
+            int idx = token_ids[i];
+            if (idx < 0 || idx >= (int)W.shape(0)) throw runtime_error("Token ID out of bounds");
+            
+            const double* src = w_data + idx * D;
+            double* dst = out_data + i * D;
+            std::copy(src, src + D, dst);
         }
 
-        std::size_t N       = token_ids.size();
-        std::size_t d_model = W.cols();
-
-        // Forward: build [N x d_model] matrix
-        Matrix out_data(N, d_model, 0.0);
-
-        for (std::size_t p = 0; p < N; ++p) {
-            int token_id = token_ids[p];
-            if (token_id < 0 || static_cast<std::size_t>(token_id) >= W.rows()) {
-                throw std::runtime_error("Embedding::forward: token id out of range");
-            }
-
-            std::size_t row_w = static_cast<std::size_t>(token_id);
-            for (std::size_t j = 0; j < d_model; ++j) {
-                out_data.data[p * d_model + j] =
-                    W.data().data[row_w * d_model + j];
-            }
+        if (out.require_grad()) {
+            auto node = make_shared<EmbeddingNode>(token_ids);
+            node->inputs = {W};
+            out.grad_fn() = node;
         }
-
-        Tensor out(out_data, true);
-
-        // Register autograd node
-        auto node = std::make_shared<EmbeddingNode>(token_ids);
-        node->inputs = { W};  // only param W gets gradients
-        out.p->grad_fn = node;
-
         return out;
     }
-
 }

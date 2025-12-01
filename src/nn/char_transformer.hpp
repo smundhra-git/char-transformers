@@ -1,31 +1,32 @@
-#pragma once 
-
-#include "../engine/tensor.hpp"
-#include "embedding.hpp"
+#pragma once
 #include "transformer_block.hpp"
-#include "linear.hpp"
-#include "vector"
-
-using namespace std;
+#include "embedding.hpp"
+#include "positional_encoding.hpp"
+#include <vector>
 
 namespace nn {
-
-    struct CharTransformerConfig {
+    struct TransformerConfig {
         size_t vocab_size;
         size_t d_model;
+        size_t block_size;
         size_t d_ff;
-        bool casual;
+        size_t n_layer;
+        size_t n_head;
     };
 
-    class CharTransformer {
-        public:
-            Embedding emb; //vocab_size -> d_model
-            TransformerBlock block; //d_model -> d_model
-            Linear lm_head; //d_model -> vocab_size
+    class Transformer {
+    public:
+        Embedding tok_emb;
+        PositionalEncoding pos_enc; // Replaces learnable pos_emb
+        std::vector<Block> blocks;
+        engine::Tensor ln_f_gamma;
+        engine::Tensor ln_f_beta;
+        Linear lm_head;
+        
+        size_t block_size;
 
-            explicit CharTransformer(const CharTransformerConfig& cfg);
-
-            //forward ids [T] -> logits [T * vocab_size]
-            engine::Tensor forward(const vector<int>& ids);
+        Transformer(const TransformerConfig& cfg);
+        
+        engine::Tensor forward(const std::vector<int>& idx, size_t Batch);
     };
 }
